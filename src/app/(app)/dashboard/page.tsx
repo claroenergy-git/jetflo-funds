@@ -1,0 +1,466 @@
+import Link from "next/link";
+import { getSupabase } from "@/lib/supabase/server";
+import { requireProfile } from "@/lib/data";
+import { PageTitle, Card } from "@/components/ui";
+import { inr, fmtDate, daysSince, monthKey, agingBucket } from "@/lib/format";
+import { MonthlyBars, HBarList, Kpi, C_CAPEX, C_RM } from "@/components/dashboard-charts";
+import { CsvButton } from "@/components/csv-button";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
+  const profile = await requireProfile();
+  const supabase = await getSupabase();
+
+  const [{ data: requests }, { data: payments }, { data: heads }, { data: settings }] = await Promise.all([
+    supabase
+      .from("jetflo_fund_requests")
+      .select(
+        `id, request_no, category, item_description, product_sku, amount_requested, amount_approved,
+         amount_paid, status, urgency, submitted_at, decided_at, first_paid_at, closed_at, created_at,
+         budget_head:jetflo_budget_heads ( sub_head, sanctioned_amount ),
+         vendor:jetflo_vendors ( name ),
+         requester:jetflo_users!jetflo_fund_requests_requester_id_fkey ( name )`
+      ),
+    supabase
+      .from("jetflo_payments")
+      .select(
+        `id, amount_paid, paid_on, mode, utr_ref,
+         request:jetflo_fund_requests ( request_no, category, product_sku,
+           vendor:jetflo_vendors ( name ), budget_head:jetflo_budget_heads ( sub_head ) )`
+      )
+      .order("paid_on"),
+    supabase.from("jetflo_budget_heads").select("*").eq("category", "capex").eq("active", true),
+    supabase.from("jetflo_settings").select("key, value"),
+  ]);
+
+
+  const reqs: any[] = requests ?? [];
+  const pays: any[] = payments ?? [];
+
+  // ---- headline KPIs: cumulative since inception ----
+  const paidCapex = pays.filter((p) => p.request?.category === "capex").reduce((s, p) => s + +p.amount_paid, 0);
+  const paidRm = pays.filter((p) => p.request?.category === "raw_material").reduce((s, p) => s + +p.amount_paid, 0);
+
+  // ---- date-filtered slices for tables & charts ----
+  const inRange = (d: string | null) =>
+    !!d && (!from || d >= from) && (!to || d.slice(0, 10) <= to);
+  const fPays = from || to ? pays.filter((p) => inRange(p.paid_on)) : pays;
+
+  // money in flight
+  const approvedUnpaid = reqs.filter(
+    (r) => ["approved", "partially_approved"].includes(r.status) && +r.amount_approved > +r.amount_paid
+  );
+  const awaitingApproval = reqs.filter((r) => ["submitted", "awaiting_second_approval"].includes(r.status));
+  const unclosed = reqs.filter((r) => r.status === "paid");
+  const inFlight =
+    approvedUnpaid.reduce((s, r) => s + +r.amount_approved - +r.amount_paid, 0) +
+    awaitingApproval.reduce((s, r) => s + +r.amount_requested, 0);
+
+  // TATs
+  const decided = reqs.filter((r) => r.submitted_at && r.decided_at);
+  const avgApprovalDays = decided.length
+    ? decided.reduce((s, r) => s + (new Date(r.decided_at).getTime() - new Date(r.submitted_at).getTime()), 0) /
+      decided.length /
+      86400000
+    : 0;
+  const paidReqs = reqs.filter((r) => r.submitted_at && r.first_paid_at);
+  const avgPayDays = paidReqs.length
+    ? paidReqs.reduce((s, r) => s + (new Date(r.first_paid_at).getTime() - new Date(r.submitted_at).getTime()), 0) /
+      paidReqs.length /
+      86400000
+    : 0;
+
+  // CAPEX by sub-head: sanctioned vs committed vs paid
+  const capexRows = (heads ?? [])
+    .map((h: any) => {
+      const hr = reqs.filter(
+        (r) =>
+          r.category === "capex" &&
+          r.budget_head?.sub_head === h.sub_head &&
+          ["approved", "partially_approved", "paid", "closed"].includes(r.status)
+      );
+      const committed = hr.reduce((s, r) => s + +(r.amount_approved ?? 0), 0);
+      const paid = hr.reduce((s, r) => s + +(r.amount_paid ?? 0), 0);
+      const sanctioned = +(h.sanctioned_amount ?? 0);
+      return { sub_head: h.sub_head, sanctioned, committed, paid, util: sanctioned ? committed / sanctioned : 0 };
+    })
+    .filter((r) => r.sanctioned || r.committed)
+    .sort((a, b) => b.committed - a.committed);
+
+  const capexTotals = capexRows.reduce(
+    (t, r) => ({ sanctioned: t.sanctioned + r.sanctioned, committed: t.committed + r.committed, paid: t.paid + r.paid }),
+    { sanctioned: 0, committed: 0, paid: 0 }
+  );
+
+  // RM: monthly run-rate
+  const rmPays = fPays.filter((p) => p.request?.category === "raw_material");
+  const byMonth = new Map<string, number>();
+  for (const p of rmPays) byMonth.set(monthKey(p.paid_on), (byMonth.get(monthKey(p.paid_on)) ?? 0) + +p.amount_paid);
+  const trend = [...byMonth.entries()].map(([label, value]) => ({ label, value }));
+
+  // RM: top vendors + by SKU
+  const byVendor = new Map<string, number>();
+  for (const p of rmPays) {
+    const v = p.request?.vendor?.name ?? "—";
+    byVendor.set(v, (byVendor.get(v) ?? 0) + +p.amount_paid);
+  }
+  const topVendors = [...byVendor.entries()]
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+
+  const bySku = new Map<string, number>();
+  for (const p of rmPays) {
+    const k = p.request?.product_sku ?? "Unclassified";
+    bySku.set(k, (bySku.get(k) ?? 0) + +p.amount_paid);
+  }
+  const skuRows = [...bySku.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  const rmFilteredTotal = rmPays.reduce((s, p) => s + +p.amount_paid, 0);
+
+  // aging buckets for unclosed advances
+  const buckets = new Map<string, { count: number; amount: number }>();
+  for (const r of unclosed) {
+    const b = agingBucket(daysSince(r.first_paid_at));
+    const cur = buckets.get(b) ?? { count: 0, amount: 0 };
+    buckets.set(b, { count: cur.count + 1, amount: cur.amount + +r.amount_paid });
+  }
+
+  // CSV rows
+  const paymentsCsv = fPays.map((p) => ({
+    request: p.request?.request_no,
+    category: p.request?.category,
+    sub_head: p.request?.budget_head?.sub_head,
+    vendor: p.request?.vendor?.name,
+    sku: p.request?.product_sku ?? "",
+    amount: p.amount_paid,
+    paid_on: p.paid_on,
+    mode: p.mode,
+    utr: p.utr_ref ?? "",
+  }));
+  const capexCsv = capexRows.map((r) => ({
+    sub_head: r.sub_head,
+    sanctioned: r.sanctioned,
+    committed: r.committed,
+    paid: r.paid,
+    utilization_pct: Math.round(r.util * 100),
+  }));
+
+  const qs = (f?: string, t?: string) => {
+    const p = new URLSearchParams();
+    if (f) p.set("from", f);
+    if (t) p.set("to", t);
+    const s = p.toString();
+    return `/dashboard${s ? `?${s}` : ""}`;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header & Date Filter */}
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <PageTitle
+          title="Executive Ledger Dashboard"
+          sub="JetFlo Manufacturing Unit — CAPEX Plant Setup & Live Production Burn Rate"
+        />
+        <form className="flex flex-wrap items-center gap-2 text-xs" action="/dashboard">
+          <Link
+            href={qs()}
+            className={`rounded-xl border px-3.5 py-1.5 font-semibold transition ${
+              !from && !to
+                ? "border-amber-500/50 bg-amber-500/15 text-amber-300 shadow-[0_0_12px_rgba(245,166,35,0.2)]"
+                : "border-white/10 bg-white/5 text-[#8E9CA6] hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            Since Inception
+          </Link>
+          <Link
+            href={qs("2026-04-01")}
+            className={`rounded-xl border px-3.5 py-1.5 font-semibold transition ${
+              from === "2026-04-01" && !to
+                ? "border-amber-500/50 bg-amber-500/15 text-amber-300 shadow-[0_0_12px_rgba(245,166,35,0.2)]"
+                : "border-white/10 bg-white/5 text-[#8E9CA6] hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            FY 26–27
+          </Link>
+          <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1">
+            <input
+              type="date"
+              name="from"
+              defaultValue={from}
+              className="bg-transparent text-xs text-white focus:outline-none [color-scheme:dark]"
+            />
+            <span className="text-[#5F6E77]">→</span>
+            <input
+              type="date"
+              name="to"
+              defaultValue={to}
+              className="bg-transparent text-xs text-white focus:outline-none [color-scheme:dark]"
+            />
+          </div>
+          <button className="rounded-xl border border-white/10 bg-white/10 px-3.5 py-1.5 font-bold text-white shadow-2xs hover:bg-white/20 transition">
+            Filter
+          </button>
+        </form>
+      </div>
+
+      {/* Bento Grid Row 1: Headline KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Kpi
+          label="Total CAPEX Deployed"
+          value={inr(paidCapex, { compact: true })}
+          sub={`${inr(paidCapex)} settled`}
+          accent={C_CAPEX}
+          variant="emerald"
+        />
+        <Kpi
+          label="Raw Material Payments"
+          value={inr(paidRm, { compact: true })}
+          sub={`${inr(paidRm)} settled`}
+          accent={C_RM}
+          variant="amber"
+        />
+        <Kpi
+          label="Funds In Flight"
+          value={inr(inFlight, { compact: true })}
+          sub={`${approvedUnpaid.length} approved unpaid · ${awaitingApproval.length} in queue`}
+        />
+        <Kpi
+          label="Unclosed Advances"
+          value={inr(unclosed.reduce((s, r) => s + +r.amount_paid, 0), { compact: true })}
+          sub={`${unclosed.length} paid, invoices pending`}
+        />
+      </div>
+
+      {/* Bento Grid Row 2: CAPEX Utilization Table */}
+      <div className="bento-card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/[0.02] px-6 py-4">
+          <div>
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+              CAPEX — Sanctioned vs Committed vs Paid
+            </h2>
+            <p className="text-xs text-[#8E9CA6] mt-0.5">Budget allocation per manufacturing plant sub-head</p>
+          </div>
+          <CsvButton rows={capexCsv} filename="jetflo-capex-utilization.csv" />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[680px] text-sm">
+            <thead>
+              <tr className="border-b border-white/5 bg-white/[0.01] text-left text-xs font-bold uppercase tracking-wider text-[#8E9CA6]">
+                <th className="px-6 py-3">Sub-head</th>
+                <th className="px-6 py-3 text-right">Sanctioned Cap</th>
+                <th className="px-6 py-3 text-right">Committed</th>
+                <th className="px-6 py-3 text-right">Paid Out</th>
+                <th className="w-[28%] px-6 py-3">Budget Utilization</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {capexRows.map((r) => (
+                <tr key={r.sub_head} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="px-6 py-3.5 font-semibold text-slate-200">{r.sub_head}</td>
+                  <td className="px-6 py-3.5 text-right tabular-nums text-[#8E9CA6]">{inr(r.sanctioned, { compact: true })}</td>
+                  <td className="px-6 py-3.5 text-right font-medium tabular-nums text-slate-200">{inr(r.committed, { compact: true })}</td>
+                  <td className="px-6 py-3.5 text-right font-bold tabular-nums text-emerald-300">{inr(r.paid, { compact: true })}</td>
+                  <td className="px-6 py-3.5">
+                    <div className="flex items-center gap-2.5" title={`Committed ${inr(r.committed)} of ${inr(r.sanctioned)}`}>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/5 border border-white/5">
+                        <div
+                          className="h-2 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${Math.min(r.util * 100, 100)}%`,
+                            background: r.util > 1 ? "#EF4444" : "linear-gradient(90deg, #10B981, #34D399)",
+                            boxShadow: r.util > 1 ? "0 0 8px rgba(239,68,68,0.5)" : "0 0 8px rgba(16,185,129,0.4)",
+                          }}
+                        />
+                      </div>
+                      <span className={`w-12 text-right text-xs tabular-nums font-bold ${r.util > 1 ? "text-red-400" : "text-[#8E9CA6]"}`}>
+                        {r.sanctioned ? `${Math.round(r.util * 100)}%` : "—"}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              <tr className="border-t-2 border-white/10 bg-white/[0.03] font-bold text-white">
+                <td className="px-6 py-3.5">Total CAPEX</td>
+                <td className="px-6 py-3.5 text-right tabular-nums text-[#8E9CA6]">{inr(capexTotals.sanctioned, { compact: true })}</td>
+                <td className="px-6 py-3.5 text-right tabular-nums">{inr(capexTotals.committed, { compact: true })}</td>
+                <td className="px-6 py-3.5 text-right tabular-nums text-emerald-300">{inr(capexTotals.paid, { compact: true })}</td>
+                <td className="px-6 py-3.5 text-xs text-[#8E9CA6]">
+                  {capexTotals.sanctioned ? `${Math.round((capexTotals.committed / capexTotals.sanctioned) * 100)}% overall utilized` : ""}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Bento Grid Row 3: Run-rate & Vendor Breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <Card variant="emerald">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+              Raw Material — Monthly Run-Rate
+            </h2>
+            <span className="text-[11px] font-bold text-emerald-300 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+              {from || to ? "Filtered Period" : "All Time"}
+            </span>
+          </div>
+          <p className="text-xs text-[#8E9CA6] mb-4">Disbursements per month for production components</p>
+          <MonthlyBars data={trend} color={C_RM} />
+        </Card>
+
+        <Card variant="amber">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_8px_#f5a623]" />
+              Top 10 Suppliers by Spend
+            </h2>
+            <span className="text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+              Raw Material
+            </span>
+          </div>
+          <p className="text-xs text-[#8E9CA6] mb-4">Concentration of spend across key manufacturing vendors</p>
+          <HBarList data={topVendors} color={C_RM} total={rmFilteredTotal} />
+        </Card>
+      </div>
+
+      {/* Bento Grid Row 4: SKU, Aging Advances, Turnaround */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {/* SKU Component Breakdown */}
+        <Card>
+          <h2 className="text-sm font-bold text-white mb-1">Component / SKU Distribution</h2>
+          <p className="text-xs text-[#8E9CA6] mb-4">Spend grouped by bill-of-materials category</p>
+          <HBarList data={skuRows} color={C_CAPEX} total={rmFilteredTotal} />
+        </Card>
+
+        {/* Unclosed Advances Aging */}
+        <Card>
+          <h2 className="text-sm font-bold text-white mb-1">Unclosed Advances Aging</h2>
+          <p className="text-xs text-[#8E9CA6] mb-4">Paid transfers awaiting final tax invoice</p>
+          {unclosed.length ? (
+            <table className="w-full text-xs">
+              <tbody className="divide-y divide-white/5">
+                {["0–7 days", "8–15 days", "16–30 days", "30+ days"].map((b) => {
+                  const v = buckets.get(b);
+                  const isCritical = b === "30+ days" && v && v.count > 0;
+                  return (
+                    <tr key={b} className="py-2.5">
+                      <td className={`py-2.5 font-semibold ${isCritical ? "text-red-400 font-bold" : "text-[#8E9CA6]"}`}>
+                        {b}
+                      </td>
+                      <td className="py-2.5 text-right text-slate-400">{v ? `${v.count} requests` : "0"}</td>
+                      <td className="py-2.5 text-right font-bold tabular-nums text-white">
+                        {v ? inr(v.amount, { compact: true }) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <div className="flex h-32 flex-col items-center justify-center text-center text-xs text-emerald-300 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl p-4">
+              <span className="text-base mb-1">✓</span>
+              <span>All paid advances have been settled with final invoices.</span>
+            </div>
+          )}
+        </Card>
+
+        {/* Turnaround Time & Governance Policy */}
+        <Card variant="default">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-sm font-bold text-white">Governance & TAT</h2>
+            {profile.role === "leadership" && (
+              <Link
+                href="/settings"
+                className="text-[11px] font-bold text-amber-400 hover:text-amber-300 hover:underline flex items-center gap-1"
+              >
+                ⚙️ Limits ➔
+              </Link>
+            )}
+          </div>
+          <p className="text-xs text-[#8E9CA6] mb-3">Processing speeds & policy limits</p>
+          <div className="space-y-2.5">
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 flex items-center justify-between">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400">2nd Approver Cap</div>
+                <div className="text-xs text-[#8E9CA6]">Requires Dual Sign-off</div>
+              </div>
+              <div className="text-sm font-extrabold text-amber-300 tabular-nums">
+                {inr(Number(settings?.find((s: any) => s.key === "second_approver_above")?.value ?? 500000), { compact: true })}
+              </div>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+              <div className="text-xl font-extrabold text-amber-300 tabular-nums">
+                {avgApprovalDays.toFixed(1)} <span className="text-xs font-semibold text-[#8E9CA6]">days</span>
+              </div>
+              <div className="text-[11px] text-[#8E9CA6]">Submission ➔ Decision ({decided.length} reqs)</div>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+              <div className="text-xl font-extrabold text-emerald-300 tabular-nums">
+                {avgPayDays.toFixed(1)} <span className="text-xs font-semibold text-[#8E9CA6]">days</span>
+              </div>
+              <div className="text-[11px] text-[#8E9CA6]">Submission ➔ Payment ({paidReqs.length} reqs)</div>
+            </div>
+          </div>
+        </Card>
+
+      </div>
+
+      {/* Bento Grid Row 5: Payments Register */}
+      <div className="bento-card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/[0.02] px-6 py-4">
+          <div>
+            <h2 className="text-sm font-bold text-white">Disbursement Register</h2>
+            <p className="text-xs text-[#8E9CA6]">
+              {from || to ? `Filtered records (${from ?? "Start"} ➔ ${to ?? "Today"})` : "Complete payment audit trail"}
+            </p>
+          </div>
+          <CsvButton rows={paymentsCsv} filename="jetflo-disbursements.csv" />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
+              <tr className="border-b border-white/5 bg-white/[0.01] text-left text-xs font-bold uppercase tracking-wider text-[#8E9CA6]">
+                <th className="px-6 py-3">Transfer Date</th>
+                <th className="px-6 py-3">Request No</th>
+                <th className="px-6 py-3">Category</th>
+                <th className="px-6 py-3">Beneficiary / Vendor</th>
+                <th className="px-6 py-3 text-right">Amount Disbursed</th>
+                <th className="px-6 py-3">Bank UTR / Ref</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {[...fPays].reverse().map((p) => (
+                <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="px-6 py-3 text-xs text-[#8E9CA6] font-medium">{fmtDate(p.paid_on)}</td>
+                  <td className="px-6 py-3 font-bold text-white">{p.request?.request_no}</td>
+                  <td className="px-6 py-3">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                        p.request?.category === "capex"
+                          ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/30"
+                          : "bg-amber-500/10 text-amber-300 border border-amber-500/30"
+                      }`}
+                    >
+                      {p.request?.category === "capex" ? "CAPEX" : "Raw Material"}
+                    </span>
+                  </td>
+                  <td className="max-w-[200px] truncate px-6 py-3 text-xs font-semibold text-slate-200">{p.request?.vendor?.name}</td>
+                  <td className="px-6 py-3 text-right font-bold tabular-nums text-white">{inr(+p.amount_paid)}</td>
+                  <td className="px-6 py-3 font-mono text-xs text-[#8E9CA6]">{p.utr_ref ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
