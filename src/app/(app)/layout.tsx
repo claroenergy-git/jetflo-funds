@@ -13,6 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           { href: "/requests", label: "My Requests" },
           { href: "/requests/new", label: "+ New Request" },
           { href: "/closures", label: "Pending Closures" },
+          { href: "/finance/vendors", label: "Vendors & Onboarding" },
         ]
       : profile.role === "finance"
         ? [
@@ -49,15 +50,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* Permanent Locked / Sticky Header & Tabs */}
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#090C10]/95 backdrop-blur-2xl shadow-[0_12px_35px_-10px_rgba(0,0,0,0.9)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 py-3">
-          {/* Enhanced High-Visibility Logo */}
+          {/* Enhanced High-Visibility Logo with Circular Transparent Badge */}
           <Link href="/" className="flex items-center gap-3.5 group">
-            <div className="relative flex h-12 w-14 items-center justify-center overflow-hidden rounded-xl border border-white/20 bg-white p-1.5 shadow-[0_0_20px_rgba(245,166,35,0.3)] transition-all duration-300 group-hover:scale-105 group-hover:shadow-[0_0_25px_rgba(245,166,35,0.45)]">
+            <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-amber-500/40 bg-gradient-to-br from-amber-500/20 via-black/60 to-black p-1 shadow-[0_0_20px_rgba(245,166,35,0.3)] transition-all duration-300 group-hover:scale-105 group-hover:border-amber-400 group-hover:shadow-[0_0_25px_rgba(245,166,35,0.5)]">
               <Image
                 src="/jetflo-logo.jpeg"
                 alt="JetFlo"
-                width={56}
+                width={48}
                 height={48}
-                className="h-full w-full object-contain"
+                className="h-full w-full object-cover rounded-full mix-blend-lighten"
                 priority
               />
             </div>

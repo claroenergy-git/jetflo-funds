@@ -108,19 +108,19 @@ export default function LoginPage() {
           {/* Golden Corner Accent Glows */}
           <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 h-[1px] w-3/4 bg-gradient-to-r from-transparent via-amber-400/50 to-transparent" />
 
-          {/* Logo & Header Section with Enhanced High Visibility */}
+          {/* Logo & Header Section with Circular Luxury Badge */}
           <div className="relative mb-8 text-center flex flex-col items-center">
             <div className="relative mb-4 flex items-center justify-center">
               {/* Radar rings */}
               <div className="absolute h-32 w-32 rounded-full border border-amber-500/25 animate-pulse" />
-              <div className="relative flex h-24 w-28 items-center justify-center overflow-hidden rounded-2xl border border-white/25 bg-white p-2 shadow-[0_0_30px_rgba(245,166,35,0.35)]">
+              <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-amber-400/50 bg-gradient-to-br from-amber-500/20 via-black/80 to-black p-1.5 shadow-[0_0_30px_rgba(245,166,35,0.4)]">
                 <Image
                   src="/jetflo-logo.jpeg"
                   alt="JetFlo Logo"
-                  width={112}
-                  height={96}
+                  width={80}
+                  height={80}
                   priority
-                  className="h-full w-full object-contain"
+                  className="h-full w-full object-cover rounded-full mix-blend-lighten"
                 />
               </div>
             </div>

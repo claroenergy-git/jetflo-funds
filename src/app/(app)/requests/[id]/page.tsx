@@ -52,15 +52,18 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const isFinance = profile.role === "finance";
   const editable = isOwner && (status === "draft" || status === "sent_back");
 
-  let vendors: { id: string; name: string; category: string }[] = [];
+  let vendors: { id: string; name: string }[] = [];
   let heads: { id: string; category: string; sub_head: string }[] = [];
+  let priorRequests: any[] = [];
   if (editable) {
-    const [v, h] = await Promise.all([
-      supabase.from("jetflo_vendors").select("id, name, category").eq("active", true).order("name"),
+    const [v, h, pr] = await Promise.all([
+      supabase.from("jetflo_vendors").select("id, name").eq("active", true).order("name"),
       supabase.from("jetflo_budget_heads").select("id, category, sub_head").eq("active", true).order("sub_head"),
+      supabase.from("jetflo_fund_requests").select("id, request_no, vendor_id, amount_approved, amount_requested, item_description, status").not("status", "in", "(draft,rejected)").order("created_at", { ascending: false }),
     ]);
     vendors = v.data ?? [];
     heads = h.data ?? [];
+    priorRequests = pr.data ?? [];
   }
 
   return (
@@ -102,23 +105,21 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               ...(Number(r.amount_approved) > 0 && balance > 0 && ["approved", "partially_approved", "paid"].includes(status)
                 ? [["Outstanding Balance", inr(balance)]]
                 : []),
-              ["Urgency Level", r.urgency],
-              ["Target Delivery Date", fmtDate(r.need_by_date)],
-              ["Payment Mode", r.payment_type?.replace("_", " ")],
+              ["Payment Type", r.payment_type === "advance" ? "Advance (against Quotation/Proforma)" : r.payment_type === "balance" ? "Balance Payment" : "Against Invoice"],
               ["Requested By", r.requester?.name],
               ...(r.approver ? [["1st Approver", r.approver.name]] : []),
               ...(r.second_approver ? [["2nd Approver", r.second_approver.name]] : []),
             ].map(([k, v]) => (
               <div key={String(k)} className="rounded-xl bg-white/[0.03] p-3 border border-white/5">
                 <dt className="text-[10px] font-bold uppercase tracking-wider text-[#8E9CA6]">{k}</dt>
-                <dd className="mt-1 font-bold text-slate-100 capitalize">{v ?? "—"}</dd>
+                <dd className="mt-1 font-bold text-slate-100">{v ?? "—"}</dd>
               </div>
             ))}
           </dl>
 
           {r.justification && (
             <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.02] p-4 text-xs text-slate-300">
-              <span className="font-bold text-amber-400">Business Justification: </span>
+              <span className="font-bold text-amber-400">Operational Remarks: </span>
               {r.justification}
             </div>
           )}
@@ -200,7 +201,12 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
             <h2 className="mb-3 text-sm font-bold text-white">
               {status === "sent_back" ? "Revise & Resubmit Request" : "Edit Draft"}
             </h2>
-            <RequestForm vendors={vendors} budgetHeads={heads} existing={r} />
+            <RequestForm
+              vendors={vendors}
+              budgetHeads={heads}
+              priorRequests={priorRequests}
+              existing={r}
+            />
           </Card>
         )}
 

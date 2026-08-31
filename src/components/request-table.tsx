@@ -77,9 +77,6 @@ export function RequestTable({ rows, showRequester = false }: { rows: any[]; sho
                   )}
                 </td>
                 <td className="px-6 py-4 text-right text-xs">
-                  <span className={`font-bold ${URGENCY_STYLE[r.urgency]}`}>
-                    {r.urgency !== "normal" ? `${r.urgency.toUpperCase()} · ` : ""}
-                  </span>
                   <span className="font-bold text-white">{daysSince(r.submitted_at ?? r.created_at)}d</span>
                   <div className="text-[11px] text-[#5F6E77] mt-0.5">{fmtDate(r.submitted_at ?? r.created_at)}</div>
                 </td>
