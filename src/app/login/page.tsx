@@ -24,8 +24,8 @@ export default function LoginPage() {
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
 
-    const rotateX = ((y - centerY) / centerY) * -6;
-    const rotateY = ((x - centerX) / centerX) * 6;
+    const rotateX = ((y - centerY) / centerY) * -5;
+    const rotateY = ((x - centerX) / centerX) * 5;
 
     setTilt({
       x: rotateX,
@@ -61,24 +61,22 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#07080B]">
+    <main className="relative flex min-h-screen items-center justify-center p-4 sm:p-6 overflow-hidden bg-[#f7f4ed]">
       {/* Follow-The-Leader Transition Loader */}
       {showLoader && <FollowTheLeaderLoader />}
 
-      {/* Radiant Glowing Amber Aura Backgrounds */}
-      <div className="pointer-events-none absolute -top-40 -left-40 h-[650px] w-[650px] rounded-full bg-[#E88C38]/12 blur-[160px]" />
-      <div className="pointer-events-none absolute -bottom-40 -right-40 h-[650px] w-[650px] rounded-full bg-[#F5A623]/12 blur-[160px]" />
-      <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[750px] w-[750px] rounded-full bg-[#10B981]/05 blur-[180px]" />
-      <div className="pointer-events-none absolute inset-0 bg-grid-dots opacity-40" />
+      {/* Radiant Glowing Light Aura Backgrounds */}
+      <div className="pointer-events-none absolute -top-40 -left-40 h-[650px] w-[650px] rounded-full bg-[#1e3e30]/06 blur-[140px]" />
+      <div className="pointer-events-none absolute -bottom-40 -right-40 h-[650px] w-[650px] rounded-full bg-[#d97706]/05 blur-[140px]" />
+      <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[750px] w-[750px] rounded-full bg-[#2d5a44]/04 blur-[160px]" />
+      <div className="pointer-events-none absolute inset-0 bg-grid-dots opacity-50" />
 
-      {/* Ambient Center-Fixed Background Typographic Branding with Soft Glow */}
+      {/* Ambient Center-Fixed Background Typographic Branding */}
       <div className="pointer-events-none fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center select-none z-0">
-        <div className="absolute h-64 w-[600px] max-w-[90vw] rounded-full bg-amber-500/10 blur-[100px]" />
-        <span className="text-[16vw] font-black uppercase tracking-[0.22em] text-transparent bg-clip-text bg-gradient-to-b from-white/15 via-amber-200/10 to-transparent drop-shadow-[0_0_45px_rgba(245,166,35,0.12)] font-sans leading-none pl-6">
+        <span className="text-[16vw] font-black uppercase tracking-[0.22em] text-[#1e3e30]/[0.025] font-sans leading-none pl-6">
           JETFLO
         </span>
       </div>
-
 
       {/* Main 3D Container */}
       <div className="perspective-1000 w-full max-w-md z-10">
@@ -91,50 +89,35 @@ export default function LoginPage() {
             transform: isHovered
               ? `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(1.01)`
               : `rotateX(0deg) rotateY(0deg) scale(1)`,
-            transition: isHovered ? "transform 0.08s ease-out" : "transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)",
+            transition: isHovered ? "transform 0.08s ease-out" : "transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
-          className="animate-entrance-3d bento-card relative p-8 sm:p-9 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9),0_0_35px_0_rgba(232,140,56,0.15)] transition-all"
+          className="animate-entrance-3d bento-card relative p-8 sm:p-9 shadow-xl bg-white border border-[#e5decb] transition-all"
         >
-          {/* Dynamic 3D Gloss Highlight */}
-          {isHovered && (
-            <div
-              className="pointer-events-none absolute inset-0 rounded-3xl opacity-30 transition-opacity duration-300"
-              style={{
-                background: `radial-gradient(circle at ${tilt.glossX}% ${tilt.glossY}%, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 65%)`,
-              }}
-            />
-          )}
-
-          {/* Golden Corner Accent Glows */}
-          <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 h-[1px] w-3/4 bg-gradient-to-r from-transparent via-amber-400/50 to-transparent" />
-
           {/* Logo & Header Section with Circular Luxury Badge */}
           <div className="relative mb-8 text-center flex flex-col items-center">
             <div className="relative mb-4 flex items-center justify-center">
-              {/* Radar rings */}
-              <div className="absolute h-32 w-32 rounded-full border border-amber-500/25 animate-pulse" />
-              <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-amber-400/50 bg-gradient-to-br from-amber-500/20 via-black/80 to-black p-1.5 shadow-[0_0_30px_rgba(245,166,35,0.4)]">
+              <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-[#c8bd9f] bg-gradient-to-br from-[#f2ece0] to-white p-1.5 shadow-md">
                 <Image
                   src="/jetflo-logo.jpeg"
                   alt="JetFlo Logo"
                   width={80}
                   height={80}
                   priority
-                  className="h-full w-full object-cover rounded-full mix-blend-lighten"
+                  className="h-full w-full object-cover rounded-full"
                 />
               </div>
             </div>
 
-            <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-400 shadow-[0_0_15px_rgba(245,166,35,0.15)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#cce3d4] bg-[#eaf3ed] px-3.5 py-1 text-[11px] font-bold uppercase tracking-wider text-[#1e3e30] shadow-xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#1e3e30]" />
               Dual-Control Funds Portal
             </div>
 
-            <h1 className="mt-3.5 text-2xl font-black tracking-tight text-white">
-              JetFlo <span className="font-light text-[#8E9CA6]">Manufacturing</span>
+            <h1 className="mt-3.5 text-2xl font-black tracking-tight text-[#14261c]">
+              JetFlo <span className="font-semibold text-[#536658]">Manufacturing</span>
             </h1>
-            <p className="mt-1 text-xs text-[#8E9CA6] font-medium">
-              Subsidiary of <span className="font-bold text-white">Claro Energy Limited</span>
+            <p className="mt-1 text-xs text-[#536658] font-bold">
+              Subsidiary of <span className="font-extrabold text-[#14261c]">Claro Energy Limited</span>
             </p>
           </div>
 
@@ -176,8 +159,8 @@ export default function LoginPage() {
           </form>
 
           {/* Security Badge */}
-          <div className="mt-8 pt-4 border-t border-white/10 flex items-center justify-center gap-2 text-center text-[11px] text-[#8E9CA6]">
-            <span className="text-amber-400">🛡️</span>
+          <div className="mt-8 pt-4 border-t border-[#e5decb] flex items-center justify-center gap-2 text-center text-[11px] text-[#536658] font-medium">
+            <span className="text-[#1e3e30]">🛡️</span>
             <span>256-Bit Encrypted Financial Governance Ledger</span>
           </div>
         </div>

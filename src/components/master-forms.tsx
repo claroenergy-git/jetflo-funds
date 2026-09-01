@@ -8,7 +8,7 @@ import {
   addBudgetHead,
   type ActionResult,
 } from "@/app/actions";
-import { inputCls, labelCls, btnPrimary, btnSecondary, Alert, Card } from "@/components/ui";
+import { inputCls, labelCls, btnPrimary, Alert } from "@/components/ui";
 
 export function VendorOnboardingForm({ isFinance = false }: { isFinance?: boolean }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(onboardVendor, null);
@@ -43,10 +43,10 @@ export function VendorOnboardingForm({ isFinance = false }: { isFinance?: boolea
       )}
 
       {/* Basic Vendor Info */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3.5 sm:grid-cols-2">
         <div>
           <label className={labelCls}>
-            Legal Business Name <span className="text-amber-400 font-bold">*</span>
+            Legal Business Name <span className="text-red-600 font-bold">*</span>
           </label>
           <input
             name="name"
@@ -62,29 +62,30 @@ export function VendorOnboardingForm({ isFinance = false }: { isFinance?: boolea
       </div>
 
       {/* Statutory / Tax Section */}
-      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3.5 space-y-3">
+      <div className="rounded-xl border border-[#e2dbcc] bg-[#fbf9f4] p-4 space-y-3 shadow-xs">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
+          <span className="text-xs font-bold uppercase tracking-wider text-[#1e3e30] flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-[#1e3e30]" />
             GSTIN & PAN Verification
           </span>
-          <label className="flex items-center gap-1.5 text-xs text-[#8E9CA6] cursor-pointer">
+          <label className="flex items-center gap-1.5 text-xs text-[#536658] font-medium cursor-pointer select-none">
             <input
               type="checkbox"
               name="is_unregistered"
               value="true"
               checked={isUnregistered}
               onChange={(e) => setIsUnregistered(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-white/20 bg-white/5 text-amber-400 focus:ring-0"
+              className="h-4 w-4 rounded border-[#c8bd9f] text-[#1e3e30] focus:ring-0 cursor-pointer"
             />
             <span>GST Exempt / Unregistered</span>
           </label>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3.5 sm:grid-cols-2">
           {!isUnregistered && (
             <div>
               <label className={labelCls}>
-                15-Digit GSTIN <span className="text-amber-400 font-bold">*</span>
+                15-Digit GSTIN <span className="text-red-600 font-bold">*</span>
               </label>
               <input
                 name="gstin"
@@ -93,17 +94,18 @@ export function VendorOnboardingForm({ isFinance = false }: { isFinance?: boolea
                 onChange={(e) => handleGstinChange(e.target.value)}
                 placeholder="e.g. 33AABCS1234F1Z5"
                 maxLength={15}
+                autoComplete="off"
                 className={`${inputCls} font-mono uppercase`}
               />
               {gstin && gstin.length !== 15 && (
-                <p className="mt-1 text-[11px] text-amber-400">Must be 15 alphanumeric characters</p>
+                <p className="mt-1 text-[11px] font-semibold text-[#b45309]">Must be 15 alphanumeric characters</p>
               )}
             </div>
           )}
 
           <div>
             <label className={labelCls}>
-              10-Digit PAN <span className="text-amber-400 font-bold">*</span>
+              10-Digit PAN <span className="text-red-600 font-bold">*</span>
             </label>
             <input
               name="pan"
@@ -112,6 +114,7 @@ export function VendorOnboardingForm({ isFinance = false }: { isFinance?: boolea
               onChange={(e) => setPan(e.target.value.toUpperCase().slice(0, 10))}
               placeholder="e.g. AABCS1234F"
               maxLength={10}
+              autoComplete="off"
               className={`${inputCls} font-mono uppercase`}
             />
           </div>
@@ -119,30 +122,37 @@ export function VendorOnboardingForm({ isFinance = false }: { isFinance?: boolea
       </div>
 
       {/* Point of Contact */}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3.5 sm:grid-cols-3">
         <div>
           <label className={labelCls}>
-            Contact Person <span className="text-amber-400 font-bold">*</span>
+            Contact Person <span className="text-red-600 font-bold">*</span>
           </label>
-          <input name="contact_person" required className={inputCls} placeholder="Key person name" />
+          <input
+            name="contact_person"
+            required
+            className={inputCls}
+            placeholder="Key person name"
+          />
         </div>
         <div>
           <label className={labelCls}>Accounts Email</label>
           <input
             name="email"
             type="email"
+            autoComplete="email"
             className={inputCls}
             placeholder="billing@vendor.com"
           />
         </div>
         <div>
           <label className={labelCls}>
-            Mobile / Phone <span className="text-amber-400 font-bold">*</span>
+            Mobile / Phone <span className="text-red-600 font-bold">*</span>
           </label>
           <input
             name="phone"
             required
             type="tel"
+            autoComplete="tel"
             className={inputCls}
             placeholder="10-digit mobile"
           />
@@ -150,7 +160,7 @@ export function VendorOnboardingForm({ isFinance = false }: { isFinance?: boolea
       </div>
 
       {/* Address */}
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid gap-3.5 sm:grid-cols-4">
         <div className="sm:col-span-2">
           <label className={labelCls}>Registered Office Address</label>
           <input name="address_line" className={inputCls} placeholder="Street / Industrial Area" />
@@ -171,26 +181,28 @@ export function VendorOnboardingForm({ isFinance = false }: { isFinance?: boolea
       </div>
 
       {/* Banking Details */}
-      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3.5 space-y-3">
-        <div className="text-xs font-bold uppercase tracking-wider text-amber-300">
+      <div className="rounded-xl border border-[#e2dbcc] bg-[#fbf9f4] p-4 space-y-3 shadow-xs">
+        <div className="text-xs font-bold uppercase tracking-wider text-[#1e3e30] flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-[#1e3e30]" />
           Bank Transfer & Disbursement Details
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3.5 sm:grid-cols-2">
           <div>
             <label className={labelCls}>
-              Bank Name <span className="text-amber-400 font-bold">*</span>
+              Bank Name <span className="text-red-600 font-bold">*</span>
             </label>
             <input
               name="bank_name"
               required
+              autoComplete="off"
               className={inputCls}
               placeholder="e.g. HDFC Bank / ICICI Bank / SBI"
             />
           </div>
           <div>
             <label className={labelCls}>
-              IFSC Code <span className="text-amber-400 font-bold">*</span>
+              IFSC Code <span className="text-red-600 font-bold">*</span>
             </label>
             <input
               name="ifsc"
@@ -199,15 +211,16 @@ export function VendorOnboardingForm({ isFinance = false }: { isFinance?: boolea
               onChange={(e) => setIfsc(e.target.value.toUpperCase().slice(0, 11))}
               placeholder="e.g. HDFC0000123"
               maxLength={11}
+              autoComplete="off"
               className={`${inputCls} font-mono uppercase`}
             />
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3.5 sm:grid-cols-2">
           <div>
             <label className={labelCls}>
-              Bank Account Number <span className="text-amber-400 font-bold">*</span>
+              Bank Account Number <span className="text-red-600 font-bold">*</span>
             </label>
             <input
               name="account_no"
@@ -215,48 +228,52 @@ export function VendorOnboardingForm({ isFinance = false }: { isFinance?: boolea
               required
               value={accountNo}
               onChange={(e) => setAccountNo(e.target.value.trim())}
+              autoComplete="new-password"
               className={`${inputCls} font-mono`}
               placeholder="Enter account number"
             />
           </div>
           <div>
             <label className={labelCls}>
-              Confirm Account Number <span className="text-amber-400 font-bold">*</span>
+              Confirm Account Number <span className="text-red-600 font-bold">*</span>
             </label>
             <input
               name="confirm_account_no"
+              type="text"
               required
               value={confirmAccountNo}
               onChange={(e) => setConfirmAccountNo(e.target.value.trim())}
+              autoComplete="off"
               className={`${inputCls} font-mono ${accountMismatch ? "border-red-500 focus:border-red-500" : ""}`}
               placeholder="Re-enter to confirm"
             />
             {accountMismatch && (
-              <p className="mt-1 text-[11px] text-red-400">Account numbers do not match!</p>
+              <p className="mt-1 text-[11px] font-bold text-red-600">Account numbers do not match!</p>
             )}
           </div>
         </div>
       </div>
 
       {/* Mandatory Document Proofs */}
-      <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-3.5 space-y-3">
-        <div className="text-xs font-bold uppercase tracking-wider text-amber-300">
+      <div className="rounded-xl border border-[#d8e8dc] bg-[#f4f9f5] p-4 space-y-3 shadow-xs">
+        <div className="text-xs font-bold uppercase tracking-wider text-[#1e3e30] flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-[#2d5a44]" />
           Verification Attachments
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3.5 sm:grid-cols-2">
           <div>
             <label className={labelCls}>
-              Cancelled Cheque / Passbook <span className="text-amber-400 font-bold">*</span>
+              Cancelled Cheque / Passbook <span className="text-red-600 font-bold">*</span>
             </label>
             <input
               name="bank_proof"
               type="file"
               required={!isFinance}
               accept=".pdf,.png,.jpg,.jpeg,.webp"
-              className={`${inputCls} file:mr-2 file:rounded file:border-0 file:bg-amber-500/20 file:text-amber-300 file:px-2.5 file:py-1 file:text-xs file:font-bold`}
+              className={`${inputCls} file:mr-2.5 file:rounded-lg file:border-0 file:bg-[#1e3e30] file:text-white file:px-3 file:py-1 file:text-xs file:font-bold file:cursor-pointer`}
             />
-            <p className="mt-1 text-[10px] text-[#8E9CA6]">Mandatory for accounts validation</p>
+            <p className="mt-1 text-[11px] text-[#536658]">Mandatory for accounts validation</p>
           </div>
 
           <div>
@@ -265,21 +282,21 @@ export function VendorOnboardingForm({ isFinance = false }: { isFinance?: boolea
               name="gst_cert"
               type="file"
               accept=".pdf,.png,.jpg,.jpeg,.webp"
-              className={`${inputCls} file:mr-2 file:rounded file:border-0 file:bg-white/10 file:text-slate-200 file:px-2.5 file:py-1 file:text-xs file:font-bold`}
+              className={`${inputCls} file:mr-2.5 file:rounded-lg file:border-0 file:bg-[#f0ebd9] file:text-[#1e3e30] file:px-3 file:py-1 file:text-xs file:font-bold file:cursor-pointer`}
             />
-            <p className="mt-1 text-[10px] text-[#8E9CA6]">Optional if GSTIN verified</p>
+            <p className="mt-1 text-[11px] text-[#536658]">Optional if GSTIN verified</p>
           </div>
         </div>
       </div>
 
-      <button disabled={pending || accountMismatch} className={`${btnPrimary} w-full py-2.5`}>
+      <button disabled={pending || accountMismatch} className={`${btnPrimary} w-full py-3 text-sm`}>
         {pending ? "Submitting Onboarding Request…" : isFinance ? "Onboard & Activate Vendor" : "Submit Onboarding Request to Accounts"}
       </button>
     </form>
   );
 }
 
-export function VendorApprovalActions({ vendorId, vendorName }: { vendorId: string; vendorName: string }) {
+export function VendorApprovalActions({ vendorId }: { vendorId: string; vendorName: string }) {
   const [approveState, approveAction, approvePending] = useActionState<ActionResult | null, FormData>(
     approveVendor,
     null
@@ -291,14 +308,14 @@ export function VendorApprovalActions({ vendorId, vendorName }: { vendorId: stri
 
   return (
     <div className="flex items-center gap-2">
-      {approveState?.error && <span className="text-xs text-red-400">{approveState.error}</span>}
-      {rejectState?.error && <span className="text-xs text-red-400">{rejectState.error}</span>}
+      {approveState?.error && <span className="text-xs text-red-600 font-semibold">{approveState.error}</span>}
+      {rejectState?.error && <span className="text-xs text-red-600 font-semibold">{rejectState.error}</span>}
 
       <form action={approveAction}>
         <input type="hidden" name="vendor_id" value={vendorId} />
         <button
           disabled={approvePending || rejectPending}
-          className="rounded-lg bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition-all"
+          className="rounded-lg bg-[#dcfce7] px-3 py-1.5 text-xs font-bold text-[#166534] border border-[#bbf7d0] hover:bg-[#bbf7d0] transition-all cursor-pointer shadow-2xs"
         >
           {approvePending ? "Approving…" : "Approve & Activate"}
         </button>
@@ -308,7 +325,7 @@ export function VendorApprovalActions({ vendorId, vendorName }: { vendorId: stri
         <input type="hidden" name="vendor_id" value={vendorId} />
         <button
           disabled={approvePending || rejectPending}
-          className="rounded-lg bg-red-500/20 px-3 py-1 text-xs font-bold text-red-300 border border-red-500/40 hover:bg-red-500/30 transition-all"
+          className="rounded-lg bg-[#fee2e2] px-3 py-1.5 text-xs font-bold text-[#991b1b] border border-[#fecaca] hover:bg-[#fecaca] transition-all cursor-pointer shadow-2xs"
         >
           {rejectPending ? "Rejecting…" : "Reject"}
         </button>
@@ -320,9 +337,9 @@ export function VendorApprovalActions({ vendorId, vendorName }: { vendorId: stri
 export function BudgetHeadForm() {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(addBudgetHead, null);
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} className="space-y-3.5">
       {state?.error && <Alert kind="error">{state.error}</Alert>}
-      {state?.ok && <Alert kind="success">Budget head added.</Alert>}
+      {state?.ok && <Alert kind="success">Budget head added successfully.</Alert>}
       <div>
         <label className={labelCls}>Expense Category</label>
         <select name="category" className={inputCls}>

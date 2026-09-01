@@ -24,18 +24,16 @@ export const STATUS_LABEL: Record<Status, string> = {
 };
 
 export const STATUS_STYLE: Record<Status, string> = {
-  draft: "bg-white/5 text-[#94A3B8] border border-white/10",
-  submitted: "bg-amber-500/10 text-amber-300 border border-amber-500/30",
-  sent_back: "bg-orange-500/10 text-orange-300 border border-orange-500/30",
-  awaiting_second_approval: "bg-purple-500/10 text-purple-300 border border-purple-500/30",
-  approved: "bg-emerald-500/10 text-emerald-300 border border-emerald-500/30",
-  partially_approved: "bg-teal-500/10 text-teal-300 border border-teal-500/30",
-  rejected: "bg-red-500/10 text-red-300 border border-red-500/30",
-  paid: "bg-emerald-400/15 text-emerald-200 font-semibold border border-emerald-400/40 shadow-[0_0_12px_rgba(52,211,153,0.15)]",
-  closed: "bg-slate-800/60 text-slate-400 border border-slate-700/60",
+  draft: "bg-[#f0ebd9] text-[#536658] border border-[#dcd4c0]",
+  submitted: "bg-[#fef3c7] text-[#92400e] border border-[#fde68a]",
+  sent_back: "bg-[#ffedd5] text-[#9a3412] border border-[#fed7aa]",
+  awaiting_second_approval: "bg-[#f3e8ff] text-[#6b21a8] border border-[#e9d5ff]",
+  approved: "bg-[#dcfce7] text-[#166534] border border-[#bbf7d0]",
+  partially_approved: "bg-[#ccfbf1] text-[#115e59] border border-[#99f6e4]",
+  rejected: "bg-[#fee2e2] text-[#991b1b] border border-[#fecaca]",
+  paid: "bg-[#d1fae5] text-[#065f46] font-bold border border-[#a7f3d0] shadow-sm",
+  closed: "bg-[#f1f5f9] text-[#475569] border border-[#cbd5e1]",
 };
-
-
 
 export const CATEGORY_LABEL: Record<string, string> = {
   capex: "CAPEX — Plant Setup",
@@ -43,9 +41,9 @@ export const CATEGORY_LABEL: Record<string, string> = {
 };
 
 export const URGENCY_STYLE: Record<string, string> = {
-  normal: "text-slate-500",
-  urgent: "text-amber-600 font-medium",
-  critical: "text-red-600 font-semibold",
+  normal: "text-[#536658]",
+  urgent: "text-[#b45309] font-semibold",
+  critical: "text-[#b91c1c] font-bold",
 };
 
 export interface Profile {

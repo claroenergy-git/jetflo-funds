@@ -72,24 +72,24 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         {/* Header Title */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-white">{r.request_no}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight text-[#14261c]">{r.request_no}</h1>
             <StatusChip status={status} />
             {r.duplicate_warning && (
-              <span className="rounded-full bg-amber-500/10 px-3 py-0.5 text-xs font-bold text-amber-300 border border-amber-500/30">
+              <span className="rounded-full bg-[#fef3c7] px-3 py-0.5 text-xs font-bold text-[#92400e] border border-[#fde68a]">
                 ⚠ Possible duplicate within 7 days
               </span>
             )}
           </div>
-          <span className="text-xs text-[#8E9CA6] font-medium">
+          <span className="text-xs text-[#536658] font-semibold">
             Created: {fmtDate(r.created_at)}
           </span>
         </div>
 
         {/* Primary Information Bento Card */}
         <Card variant="default">
-          <div className="mb-5 pb-4 border-b border-white/10">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8E9CA6]">Item Description</span>
-            <div className="text-base font-bold text-white mt-1">{r.item_description}</div>
+          <div className="mb-5 pb-4 border-b border-[#e5decb]">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#415546]">Item Description</span>
+            <div className="text-base font-bold text-[#14261c] mt-1">{r.item_description}</div>
           </div>
 
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
@@ -110,16 +110,16 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               ...(r.approver ? [["1st Approver", r.approver.name]] : []),
               ...(r.second_approver ? [["2nd Approver", r.second_approver.name]] : []),
             ].map(([k, v]) => (
-              <div key={String(k)} className="rounded-xl bg-white/[0.03] p-3 border border-white/5">
-                <dt className="text-[10px] font-bold uppercase tracking-wider text-[#8E9CA6]">{k}</dt>
-                <dd className="mt-1 font-bold text-slate-100">{v ?? "—"}</dd>
+              <div key={String(k)} className="rounded-xl bg-[#fbf9f4] p-3 border border-[#e5decb]">
+                <dt className="text-[10px] font-bold uppercase tracking-wider text-[#536658]">{k}</dt>
+                <dd className="mt-1 font-bold text-[#14261c]">{v ?? "—"}</dd>
               </div>
             ))}
           </dl>
 
           {r.justification && (
-            <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.02] p-4 text-xs text-slate-300">
-              <span className="font-bold text-amber-400">Operational Remarks: </span>
+            <div className="mt-5 rounded-xl border border-[#e2dbcc] bg-[#fbf9f4] p-4 text-xs text-[#14261c]">
+              <span className="font-bold text-[#1e3e30]">Operational Remarks: </span>
               {r.justification}
             </div>
           )}
@@ -138,26 +138,26 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
 
         {/* Attachments Bento Card */}
         <Card variant="default">
-          <h2 className="mb-3 text-sm font-bold text-white">Quotation & Supporting Documents</h2>
+          <h2 className="mb-3 text-sm font-bold text-[#14261c]">Quotation & Supporting Documents</h2>
           {signed.length === 0 ? (
-            <p className="text-xs text-[#8E9CA6] py-2">No attachments uploaded yet.</p>
+            <p className="text-xs text-[#536658] py-2">No attachments uploaded yet.</p>
           ) : (
             <ul className="space-y-2.5 text-sm">
               {signed.map((a) => (
-                <li key={a.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
+                <li key={a.id} className="flex items-center justify-between gap-3 rounded-xl border border-[#e5decb] bg-[#fbf9f4] p-3.5">
                   <div className="flex items-center gap-2.5">
-                    <span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300 border border-amber-500/30">
+                    <span className="rounded-full bg-[#eaf3ed] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#1e3e30] border border-[#cce3d4]">
                       {a.kind.replace("_", " ")}
                     </span>
                     {a.url ? (
-                      <a href={a.url} target="_blank" rel="noreferrer" className="font-bold text-amber-400 hover:text-amber-300 hover:underline">
+                      <a href={a.url} target="_blank" rel="noreferrer" className="font-bold text-[#1e3e30] hover:underline">
                         {a.file_name} ↗
                       </a>
                     ) : (
-                      <span className="text-slate-300">{a.file_name}</span>
+                      <span className="text-[#14261c] font-medium">{a.file_name}</span>
                     )}
                   </div>
-                  <span className="text-[11px] font-medium text-[#8E9CA6]">{fmtDate(a.created_at)}</span>
+                  <span className="text-[11px] font-semibold text-[#7a8d80]">{fmtDate(a.created_at)}</span>
                 </li>
               ))}
             </ul>
@@ -167,26 +167,26 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         {/* Payments Bento Table */}
         {(payments?.length ?? 0) > 0 && (
           <div className="bento-card overflow-hidden">
-            <div className="border-b border-white/10 bg-white/[0.02] px-6 py-4 font-bold text-sm text-white">
+            <div className="border-b border-[#e5decb] bg-[#fbf9f4] px-6 py-4 font-bold text-sm text-[#14261c]">
               Payment Tranches Recorded
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[480px] text-sm">
                 <thead>
-                  <tr className="border-b border-white/5 bg-white/[0.01] text-left text-xs font-bold uppercase tracking-wider text-[#8E9CA6]">
+                  <tr className="border-b border-[#e5decb] bg-[#fbf9f4] text-left text-xs font-bold uppercase tracking-wider text-[#415546]">
                     <th className="px-6 py-3">Date</th>
                     <th className="px-6 py-3 text-right">Amount Paid</th>
                     <th className="px-6 py-3">Mode</th>
                     <th className="px-6 py-3">Bank UTR / Ref</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-[#e5decb]">
                   {payments!.map((p) => (
-                    <tr key={p.id} className="hover:bg-white/[0.02]">
-                      <td className="px-6 py-3 text-xs text-[#8E9CA6] font-medium">{fmtDate(p.paid_on)}</td>
-                      <td className="px-6 py-3 text-right font-bold tabular-nums text-emerald-300">{inr(p.amount_paid)}</td>
-                      <td className="px-6 py-3 uppercase text-xs font-bold text-slate-300">{p.mode}</td>
-                      <td className="px-6 py-3 font-mono text-xs text-[#8E9CA6]">{p.utr_ref ?? "—"}</td>
+                    <tr key={p.id} className="hover:bg-[#fbf9f4]">
+                      <td className="px-6 py-3 text-xs text-[#536658] font-semibold">{fmtDate(p.paid_on)}</td>
+                      <td className="px-6 py-3 text-right font-bold tabular-nums text-[#166534]">{inr(p.amount_paid)}</td>
+                      <td className="px-6 py-3 uppercase text-xs font-bold text-[#14261c]">{p.mode}</td>
+                      <td className="px-6 py-3 font-mono text-xs text-[#536658] font-medium">{p.utr_ref ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -198,7 +198,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         {/* Edit while draft / sent back */}
         {editable && (
           <Card>
-            <h2 className="mb-3 text-sm font-bold text-white">
+            <h2 className="mb-3 text-sm font-bold text-[#14261c]">
               {status === "sent_back" ? "Revise & Resubmit Request" : "Edit Draft"}
             </h2>
             <RequestForm
@@ -213,8 +213,8 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         {/* Finance Decision Panel */}
         {isFinance && (status === "submitted" || status === "awaiting_second_approval") && (
           <Card variant="amber">
-            <h2 className="mb-3 text-sm font-bold text-amber-300 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_8px_#f5a623]" />
+            <h2 className="mb-3 text-sm font-bold text-[#92400e] flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-[#d97706]" />
               Finance Sign-Off & Approval
             </h2>
             <DecisionPanel
@@ -229,8 +229,8 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         {/* Record Payment */}
         {isFinance && ["approved", "partially_approved"].includes(status) && balance > 0 && (
           <Card variant="emerald">
-            <h2 className="mb-3 text-sm font-bold text-emerald-300 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+            <h2 className="mb-3 text-sm font-bold text-[#166534] flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-[#166534]" />
               Record Bank Fund Transfer
             </h2>
             <PaymentForm id={r.id} balance={balance} />
@@ -240,7 +240,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         {/* Close Request */}
         {(isOwner || isFinance) && status === "paid" && (
           <Card variant="amber">
-            <h2 className="mb-3 text-sm font-bold text-amber-300">Complete Advance Closure</h2>
+            <h2 className="mb-3 text-sm font-bold text-[#92400e]">Complete Advance Closure</h2>
             <CloseForm id={r.id} hasInvoice={(attachments ?? []).some((a) => ["invoice", "grn"].includes(a.kind))} />
           </Card>
         )}
@@ -249,19 +249,19 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       {/* Right Column: Immutable Audit Timeline */}
       <div>
         <Card className="sticky top-20">
-          <h2 className="mb-4 text-sm font-bold text-white flex items-center gap-2">
-            <span className="text-amber-400">🛡️</span>
+          <h2 className="mb-4 text-sm font-bold text-[#14261c] flex items-center gap-2">
+            <span className="text-[#1e3e30]">🛡️</span>
             <span>Audit Trail Timeline</span>
           </h2>
-          <ol className="relative space-y-4 border-l border-white/10 pl-4">
+          <ol className="relative space-y-4 border-l border-[#e5decb] pl-4">
             {(audit ?? []).map((e) => (
               <li key={e.id} className="relative">
-                <span className="absolute -left-[21.5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#090C10] bg-amber-400 shadow-[0_0_8px_#f5a623]" />
-                <div className="text-xs font-bold text-white">
+                <span className="absolute -left-[21.5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#1e3e30]" />
+                <div className="text-xs font-bold text-[#14261c]">
                   {ACTION_LABEL[e.action] ?? STATUS_LABEL[e.action as Status] ?? e.action}
                 </div>
-                {e.remarks && <div className="text-xs text-[#8E9CA6] mt-0.5">{e.remarks}</div>}
-                <div className="text-[10px] text-[#5F6E77] mt-0.5">
+                {e.remarks && <div className="text-xs text-[#536658] mt-0.5 font-medium">{e.remarks}</div>}
+                <div className="text-[10px] text-[#7a8d80] font-semibold mt-0.5">
                   {userName(e.actor_id)} · {fmtDateTime(e.created_at)}
                 </div>
               </li>

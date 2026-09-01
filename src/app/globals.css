@@ -1,41 +1,37 @@
 @import "tailwindcss";
 
 /* =========================================================
-   LIGHT & DARK DESIGN TOKENS WITH ENHANCED DEPTH
+   EXCLUSIVE LIGHT GREEN & BEIGE DESIGN SYSTEM
+   Tailored for High Readability, Visual Comfort & Rich Depth
    ========================================================= */
 
 :root {
-  --bg-canvas: #fbf9f4;
+  --bg-canvas: #f6f3eb;
   --bg-surface: #ffffff;
-  --bg-surface-elevated: #f4efe6;
-  --border-subtle: #e4ddce;
-  --border-strong: #d0c6b4;
-  --text-main: #14281c;
-  --text-muted: #5c6c60;
+  --bg-surface-elevated: #efe9dc;
+  --bg-surface-soft: #fbf9f4;
+  --border-subtle: #ded5c2;
+  --border-strong: #bfb297;
+  --text-main: #14261c;
+  --text-muted: #536658;
+  --text-dim: #7a8d80;
+  
   --color-primary: #1e3e30;
-  --color-primary-hover: #142d23;
+  --color-primary-hover: #142d21;
   --color-accent: #2d5a44;
-  --color-accent-light: #eaf3ee;
-  --card-bg: linear-gradient(145deg, #ffffff 0%, #fbf9f5 100%);
-  --card-shadow: 0 12px 32px -8px rgba(28, 37, 30, 0.08), 0 2px 6px -1px rgba(28, 37, 30, 0.04);
-  --card-bevel: inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
-}
+  --color-accent-light: #eaf3ed;
+  
+  --color-amber-badge: #fef3c7;
+  --color-amber-text: #92400e;
+  --color-amber-border: #fde68a;
+  
+  --color-emerald-badge: #dcfce7;
+  --color-emerald-text: #166534;
+  --color-emerald-border: #bbf7d0;
 
-.dark {
-  --bg-canvas: #07080b;
-  --bg-surface: rgba(18, 21, 26, 0.85);
-  --bg-surface-elevated: rgba(26, 31, 38, 0.95);
-  --border-subtle: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(232, 140, 56, 0.35);
-  --text-main: #f3f5f7;
-  --text-muted: #8e9ca6;
-  --color-primary: #f5a623;
-  --color-primary-hover: #e88c38;
-  --color-accent: #e88c38;
-  --color-accent-light: rgba(245, 166, 35, 0.12);
-  --card-bg: linear-gradient(145deg, rgba(20, 24, 30, 0.88) 0%, rgba(11, 14, 18, 0.96) 100%);
-  --card-shadow: 0 24px 50px -15px rgba(0, 0, 0, 0.9), 0 0 1px 1px rgba(255, 255, 255, 0.06);
-  --card-bevel: inset 0 1px 1px 0 rgba(255, 255, 255, 0.15);
+  --card-bg: #ffffff;
+  --card-shadow: 0 2px 5px rgba(20, 38, 28, 0.04), 0 8px 24px -3px rgba(20, 38, 28, 0.08), 0 20px 48px -12px rgba(20, 38, 28, 0.06);
+  --card-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 rgba(222, 213, 194, 0.4);
 }
 
 body {
@@ -43,72 +39,66 @@ body {
   color: var(--text-main);
   font-family: var(--font-plus-jakarta), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.3s ease, color 0.3s ease;
   min-height: 100vh;
-}
-
-.dark body {
   background-image: 
-    radial-gradient(circle at 15% 15%, rgba(232, 140, 56, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 85% 85%, rgba(232, 140, 56, 0.06) 0%, transparent 45%),
-    radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.03) 0%, transparent 60%);
+    radial-gradient(circle at 8% 8%, rgba(30, 62, 48, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 92% 92%, rgba(217, 119, 6, 0.04) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(45, 90, 68, 0.03) 0%, transparent 60%);
   background-attachment: fixed;
 }
 
-/* Dot matrix overlay */
+/* Subtle dot matrix overlay */
 .bg-grid-dots {
-  background-image: radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(26, 40, 31, 0.07) 1px, transparent 1px);
   background-size: 24px 24px;
-}
-.dark .bg-grid-dots {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
 }
 
 /* =========================================================
-   BENTO CARDS WITH MULTI-LAYER DEPTH
+   BROWSER AUTOFILL & INPUT FIXES
+   ========================================================= */
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #14261c !important;
+  -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+  border-color: #ded5c2 !important;
+}
+
+/* =========================================================
+   BENTO CARDS & TACTILE DEPTH
    ========================================================= */
 
 .bento-card {
   position: relative;
-  background: var(--card-bg);
+  background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: 1.25rem;
   box-shadow: var(--card-shadow), var(--card-bevel);
-  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-  overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .bento-card:hover {
   border-color: var(--border-strong);
+  box-shadow: 0 4px 12px rgba(20, 38, 28, 0.06), 0 16px 36px -4px rgba(20, 38, 28, 0.11), 0 28px 64px -12px rgba(20, 38, 28, 0.09), var(--card-bevel);
   transform: translateY(-2px);
 }
 
-.dark .bento-card:hover {
-  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.95), 0 0 25px rgba(232, 140, 56, 0.12), inset 0 1px 1px 0 rgba(255, 255, 255, 0.22);
-}
-
 .bento-card-sage, .bento-card-emerald {
-  background: linear-gradient(145deg, #ffffff 0%, #f0f7f3 100%);
-  border: 1px solid #b8d4c3;
-}
-.dark .bento-card-sage, .dark .bento-card-emerald {
-  background: linear-gradient(145deg, rgba(16, 28, 22, 0.9) 0%, rgba(9, 16, 13, 0.96) 100%);
-  border: 1px solid rgba(52, 211, 153, 0.3);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.8), 0 0 20px -5px rgba(16, 185, 129, 0.15), inset 0 1px 1px 0 rgba(52, 211, 153, 0.25);
+  background: linear-gradient(145deg, #ffffff 0%, #f1f8f3 100%);
+  border: 1px solid #c4decd;
 }
 
 .bento-card-beige, .bento-card-amber {
-  background: linear-gradient(145deg, #ffffff 0%, #f7f2e7 100%);
-  border: 1px solid #e2d9c8;
-}
-.dark .bento-card-beige, .dark .bento-card-amber {
-  background: linear-gradient(145deg, rgba(28, 22, 16, 0.9) 0%, rgba(14, 12, 10, 0.96) 100%);
-  border: 1px solid rgba(232, 140, 56, 0.3);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.8), 0 0 20px -5px rgba(232, 140, 56, 0.15), inset 0 1px 1px 0 rgba(245, 166, 35, 0.25);
+  background: linear-gradient(145deg, #ffffff 0%, #faf3e5 100%);
+  border: 1px solid #e5d5be;
 }
 
 /* =========================================================
-   PURE FOLLOW-THE-LEADER LOADER (HIGH FPS, ZERO LAG)
+   PURE FOLLOW-THE-LEADER LOADER (HIGH FPS)
    ========================================================= */
 
 @keyframes follow-the-leader {
@@ -138,16 +128,15 @@ body {
   will-change: transform;
 }
 
-/* Light mode palette: Sage & Forest Green */
 .follow-the-leader-line div:nth-child(1) {
   animation-delay: 0.15s;
   background-color: #1e3e30;
-  box-shadow: 0 0 12px rgba(30, 62, 48, 0.6);
+  box-shadow: 0 0 10px rgba(30, 62, 48, 0.4);
 }
 .follow-the-leader-line div:nth-child(2) {
   animation-delay: 0.3s;
   background-color: #2d5a44;
-  box-shadow: 0 0 10px rgba(45, 90, 68, 0.5);
+  box-shadow: 0 0 8px rgba(45, 90, 68, 0.35);
 }
 .follow-the-leader-line div:nth-child(3) {
   animation-delay: 0.45s;
@@ -162,119 +151,6 @@ body {
   background-color: #a3d9be;
 }
 
-/* Dark mode palette: Golden Amber */
-.dark .follow-the-leader-line div:nth-child(1) {
-  background-color: #f5a623;
-  box-shadow: 0 0 16px rgba(245, 166, 35, 0.9);
-}
-.dark .follow-the-leader-line div:nth-child(2) {
-  background-color: #e88c38;
-  box-shadow: 0 0 12px rgba(232, 140, 56, 0.7);
-}
-.dark .follow-the-leader-line div:nth-child(3) {
-  background-color: #ffbe5a;
-}
-.dark .follow-the-leader-line div:nth-child(4) {
-  background-color: #ffd699;
-}
-.dark .follow-the-leader-line div:nth-child(5) {
-  background-color: #ffffff;
-}
-
-/* =========================================================
-   3D THEME TOGGLE SWITCH (Customized for Beige/Green & Dark)
-   ========================================================= */
-
-.theme-switch {
-  font-size: 14px;
-  position: relative;
-  display: inline-block;
-  width: 3.2em;
-  height: 1.8em;
-  transform-style: preserve-3d;
-  perspective: 500px;
-  animation: toggle__animation 4s infinite ease-in-out;
-  cursor: pointer;
-}
-
-.theme-switch::before {
-  content: "";
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  left: 0;
-  top: 0;
-  filter: blur(14px);
-  z-index: -1;
-  border-radius: 50px;
-  background-color: rgba(45, 90, 68, 0.4);
-  transition: all 0.4s ease;
-}
-
-.dark .theme-switch::before {
-  background-color: rgba(232, 140, 56, 0.4);
-}
-
-.theme-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.theme-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #f3efe6;
-  border: 1px solid #d8cfbe;
-  transition: 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  border-radius: 30px;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
-}
-
-.theme-slider:before {
-  position: absolute;
-  content: "☀️";
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  height: 1.35em;
-  width: 1.35em;
-  left: 0.2em;
-  bottom: 0.18em;
-  transition: 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  border-radius: 50%;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-  background: linear-gradient(135deg, #1e3e30 0%, #2d5a44 100%);
-  color: #fff;
-}
-
-.theme-switch input:checked + .theme-slider {
-  background-color: #12151b;
-  border-color: rgba(232, 140, 56, 0.4);
-}
-
-.theme-switch input:checked + .theme-slider:before {
-  content: "🌙";
-  transform: translateX(1.35em);
-  background: linear-gradient(135deg, #e88c38 0%, #f5a623 100%);
-  box-shadow: 0 0 10px rgba(245, 166, 35, 0.6);
-  color: #0b0c0e;
-}
-
-@keyframes toggle__animation {
-  0%, 100% {
-    transform: translateY(-2px) rotateX(10deg) rotateY(-8deg);
-  }
-  50% {
-    transform: translateY(2px) rotateX(6deg) rotateY(-4deg);
-  }
-}
-
 /* =========================================================
    3D PERSPECTIVE & UTILITIES
    ========================================================= */
@@ -286,7 +162,7 @@ body {
 @keyframes entrance3D {
   0% {
     opacity: 0;
-    transform: translateY(20px) scale(0.96);
+    transform: translateY(14px) scale(0.98);
   }
   100% {
     opacity: 1;
@@ -295,22 +171,21 @@ body {
 }
 
 .animate-entrance-3d {
-  animation: entrance3D 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: entrance3D 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* =========================================================
-   3D LUXURY LOGOUT BUTTON (From Uiverse.io by Spacious74)
+   ELEGANT SMOOTH LOGOUT BUTTON
    ========================================================= */
 
 .logout-3d-button {
   cursor: pointer;
-  border: solid 2px #1f1b16;
-  border-top: none;
-  border-radius: 14px;
+  border: 1px solid #d5cbba;
+  border-radius: 12px;
   position: relative;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.5), 0px 8px 25px -5px rgba(0, 0, 0, 0.8);
-  transition: all 0.25s ease;
-  background: #0d0f12;
+  box-shadow: 0 2px 6px rgba(20, 38, 28, 0.06);
+  transition: all 0.2s ease;
+  background: #ffffff;
   display: inline-block;
   outline: none;
 }
@@ -322,35 +197,25 @@ body {
   align-items: center;
   gap: 6px;
   font-weight: 700;
-  letter-spacing: 0.5px;
-  border-bottom: solid 2px rgba(232, 140, 56, 0.4);
-  border-radius: 12px;
-  background: linear-gradient(180deg, #241c14 0%, #0d0f12 100%);
-  color: #f5a623;
-  text-shadow: 0 0 8px rgba(245, 166, 35, 0.4);
-  transition: all 0.25s ease;
+  letter-spacing: 0.3px;
+  border-radius: 11px;
+  background: #ffffff;
+  color: #1e3e30;
+  transition: all 0.2s ease;
 }
 
-.logout-3d-button .svgs {
-  position: relative;
-  display: flex;
-  align-items: center;
-  z-index: 10;
-}
-
-.logout-3d-button .svgs > * {
-  filter: drop-shadow(0 0 6px rgba(245, 166, 35, 0.6));
+.logout-3d-button:hover {
+  border-color: #1e3e30;
+  box-shadow: 0 4px 14px rgba(30, 62, 48, 0.15);
+  transform: translateY(-1px);
 }
 
 .logout-3d-button:hover .inner {
-  background: linear-gradient(180deg, #3d2b1c 0%, #15181e 100%);
-  border-bottom-color: #f5a623;
-  box-shadow: 0 0 16px rgba(245, 166, 35, 0.35);
-  color: #ffffff;
+  background: #eaf3ed;
+  color: #142d21;
 }
 
 .logout-3d-button:active {
-  box-shadow: none;
   transform: translateY(1px);
+  box-shadow: none;
 }
-

@@ -30,17 +30,17 @@ export default async function SettingsPage() {
       />
 
       <Card variant="amber">
-        <div className="mb-6 pb-4 border-b border-white/10 flex items-center justify-between">
+        <div className="mb-6 pb-4 border-b border-[#ebdcc4] flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <span className="text-amber-400">⚖️</span>
+            <h2 className="text-base font-bold text-[#14261c] flex items-center gap-2">
+              <span className="text-[#1e3e30]">⚖️</span>
               Approval Matrix & Threshold Policies
             </h2>
-            <p className="text-xs text-[#8E9CA6] mt-0.5">
+            <p className="text-xs text-[#536658] mt-0.5 font-medium">
               Modifications take effect immediately across all active approval queues and payment dispatches.
             </p>
           </div>
-          <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
             Leadership Only
           </span>
         </div>

@@ -10,10 +10,10 @@ export function Card({
   variant?: "default" | "amber" | "emerald" | "elevated";
 }) {
   const variantStyles = {
-    default: "bento-card",
+    default: "bento-card bg-white",
     amber: "bento-card bento-card-amber",
     emerald: "bento-card bento-card-emerald",
-    elevated: "bento-card shadow-2xl bg-[#12151B]/95",
+    elevated: "bento-card shadow-lg bg-[#ffffff] border-[#dcd4c0]",
   };
 
   return (
@@ -46,8 +46,8 @@ export function PageTitle({
   return (
     <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">{title}</h1>
-        {sub && <p className="mt-1 text-sm text-[#8E9CA6]">{sub}</p>}
+        <h1 className="text-2xl font-extrabold tracking-tight text-[#14261c]">{title}</h1>
+        {sub && <p className="mt-1 text-sm text-[#536658] font-medium">{sub}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
@@ -55,15 +55,15 @@ export function PageTitle({
 }
 
 export const inputCls =
-  "w-full rounded-xl border border-white/10 bg-[#12151B]/80 px-3.5 py-2.5 text-sm text-white placeholder:text-[#5F6E77] transition-all focus:border-amber-400/50 focus:bg-[#161A22] focus:outline-none focus:ring-2 focus:ring-amber-500/20";
+  "w-full rounded-xl border border-[#dcd4c0] bg-white px-3.5 py-2.5 text-sm text-[#14261c] placeholder:text-[#8e9f93] transition-all focus:border-[#1e3e30] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1e3e30]/15";
 
-export const labelCls = "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#8E9CA6]";
+export const labelCls = "mb-1.5 block text-xs font-bold uppercase tracking-wider text-[#415546]";
 
 export const btnPrimary =
-  "inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#E88C38] via-[#F5A623] to-[#E88C38] bg-[length:200%_auto] px-4 py-2.5 text-sm font-bold text-[#0B0C0E] shadow-[0_0_20px_rgba(245,166,35,0.25)] transition-all hover:shadow-[0_0_30px_rgba(245,166,35,0.4)] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none";
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-[#1e3e30] px-4 py-2.5 text-sm font-bold text-[#ffffff] shadow-[0_2px_8px_rgba(30,62,48,0.2)] transition-all hover:bg-[#142d21] hover:shadow-[0_4px_14px_rgba(30,62,48,0.3)] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none cursor-pointer";
 
 export const btnSecondary =
-  "inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-[#E2E8F0] shadow-2xs transition-all hover:bg-white/10 hover:border-white/20 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none";
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-[#dcd4c0] bg-white px-4 py-2.5 text-sm font-semibold text-[#14261c] shadow-2xs transition-all hover:bg-[#f2ece0] hover:border-[#c8bd9f] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none cursor-pointer";
 
 export function Alert({
   kind,
@@ -73,13 +73,13 @@ export function Alert({
   children: React.ReactNode;
 }) {
   const styles = {
-    error: "border-red-500/30 bg-red-950/40 text-red-300",
-    warning: "border-amber-500/30 bg-amber-950/40 text-amber-300",
-    success: "border-emerald-500/30 bg-emerald-950/40 text-emerald-300",
-    info: "border-blue-500/30 bg-blue-950/40 text-blue-300",
+    error: "border-[#fecaca] bg-[#fef2f2] text-[#991b1b]",
+    warning: "border-[#fde68a] bg-[#fffbeb] text-[#92400e]",
+    success: "border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]",
+    info: "border-[#bae6fd] bg-[#f0f9ff] text-[#0369a1]",
   };
   return (
-    <div className={`rounded-xl border p-3.5 text-sm leading-relaxed ${styles[kind]}`}>
+    <div className={`rounded-xl border p-3.5 text-sm font-medium leading-relaxed shadow-xs ${styles[kind]}`}>
       {children}
     </div>
   );

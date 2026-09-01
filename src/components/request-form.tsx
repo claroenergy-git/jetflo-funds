@@ -50,7 +50,7 @@ export function RequestForm({
     });
     setSaved(entries);
     const res = await action(prev, fd);
-    setAttempt((a) => a + 1); // remount form so retained values re-apply
+    setAttempt((a) => a + 1);
     return res;
   };
 
@@ -113,7 +113,7 @@ export function RequestForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className={labelCls}>
-            Expense Category <span className="text-amber-400 font-bold">*</span>
+            Expense Category <span className="text-red-600 font-bold">*</span>
           </label>
           <select
             name="category"
@@ -129,7 +129,7 @@ export function RequestForm({
 
         <div>
           <label className={labelCls}>
-            Sub-head <span className="text-amber-400 font-bold">*</span>
+            Sub-head <span className="text-red-600 font-bold">*</span>
           </label>
           <select
             required
@@ -151,12 +151,12 @@ export function RequestForm({
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className={labelCls}>
-              Vendor / Beneficiary <span className="text-amber-400 font-bold">*</span>
+              Vendor / Beneficiary <span className="text-red-600 font-bold">*</span>
             </label>
             <Link
               href="/finance/vendors"
               target="_blank"
-              className="text-[11px] font-bold text-amber-400 hover:text-amber-300 hover:underline"
+              className="text-[11px] font-bold text-[#1e3e30] hover:underline"
             >
               + Onboard new vendor
             </Link>
@@ -181,7 +181,7 @@ export function RequestForm({
             ))}
           </select>
           {vendors.length === 0 && (
-            <p className="mt-1 text-xs text-amber-400/80">
+            <p className="mt-1 text-xs text-[#b45309] font-medium">
               No approved vendors found. Please onboard vendor first.
             </p>
           )}
@@ -202,7 +202,7 @@ export function RequestForm({
             <label className={labelCls}>Plant Location</label>
             <input
               disabled
-              className={`${inputCls} opacity-70 cursor-not-allowed`}
+              className={`${inputCls} opacity-70 bg-[#f0ebd9] cursor-not-allowed`}
               value="JetFlo Coimbatore Plant"
             />
           </div>
@@ -212,7 +212,7 @@ export function RequestForm({
       {/* Item Description */}
       <div>
         <label className={labelCls}>
-          Item Description <span className="text-amber-400 font-bold">*</span>
+          Item Description <span className="text-red-600 font-bold">*</span>
         </label>
         <input
           name="item_description"
@@ -224,15 +224,18 @@ export function RequestForm({
       </div>
 
       {/* Line Item: Qty, Unit Rate, and Auto-calculated Total */}
-      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
-        <div className="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center justify-between">
-          <span>Line Total Calculation</span>
-          <span className="text-[10px] text-[#8E9CA6] normal-case">
+      <div className="rounded-xl border border-[#e2dbcc] bg-[#fbf9f4] p-4 space-y-3 shadow-xs">
+        <div className="text-xs font-bold uppercase tracking-wider text-[#1e3e30] flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-[#1e3e30]" />
+            Line Total Calculation
+          </span>
+          <span className="text-[11px] text-[#536658] font-normal normal-case">
             Auto-calculates Line Total from Qty × Rate
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
           <div>
             <label className={labelCls}>Quantity</label>
             <input
@@ -269,7 +272,7 @@ export function RequestForm({
 
           <div>
             <label className={labelCls}>
-              Total Amount Requested (₹) <span className="text-amber-400 font-bold">*</span>
+              Total Amount Requested (₹) <span className="text-red-600 font-bold">*</span>
             </label>
             <input
               name="amount_requested"
@@ -278,7 +281,7 @@ export function RequestForm({
               min="1"
               required
               placeholder="Total ₹"
-              className={`${inputCls} font-bold text-amber-300`}
+              className={`${inputCls} font-bold text-[#14261c] bg-[#eaf3ed] border-[#cce3d4]`}
               value={amount}
               onChange={(e) => {
                 setAmount(e.target.value);
@@ -293,7 +296,7 @@ export function RequestForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className={labelCls}>
-            Payment Type <span className="text-amber-400 font-bold">*</span>
+            Payment Type <span className="text-red-600 font-bold">*</span>
           </label>
           <select
             name="payment_type"
@@ -311,7 +314,7 @@ export function RequestForm({
         {paymentType === "balance" ? (
           <div>
             <label className={labelCls}>
-              Link Prior Request / Invoice <span className="text-amber-400 font-bold">*</span>
+              Link Prior Request / Invoice <span className="text-red-600 font-bold">*</span>
             </label>
             {vendorPriorRequests.length > 0 ? (
               <select
@@ -356,13 +359,13 @@ export function RequestForm({
       </div>
 
       {/* Mandatory Document Upload */}
-      <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-4 space-y-2">
+      <div className="rounded-xl border border-[#d8e8dc] bg-[#f4f9f5] p-4 space-y-2 shadow-xs">
         <div className="flex items-center justify-between">
           <label className={labelCls}>
             Mandatory Supporting Document (PDF or Image){" "}
-            <span className="text-amber-400 font-bold">*</span>
+            <span className="text-red-600 font-bold">*</span>
           </label>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#1e3e30]">
             Mandatory for Submission
           </span>
         </div>
@@ -370,9 +373,9 @@ export function RequestForm({
           name="doc_file"
           type="file"
           accept=".pdf,.png,.jpg,.jpeg,.webp"
-          className={`${inputCls} file:mr-3 file:rounded file:border-0 file:bg-amber-500/20 file:text-amber-300 file:px-3 file:py-1.5 file:text-xs file:font-bold hover:file:bg-amber-500/30 cursor-pointer`}
+          className={`${inputCls} file:mr-3 file:rounded-lg file:border-0 file:bg-[#1e3e30] file:text-white file:px-3 file:py-1.5 file:text-xs file:font-bold hover:file:bg-[#142d21] cursor-pointer`}
         />
-        <p className="text-[11px] text-[#8E9CA6]">
+        <p className="text-[11px] text-[#536658]">
           Attach Quotation, Proforma, Tax Invoice, or PO. Free-text justification has been replaced by verified document upload.
         </p>
       </div>

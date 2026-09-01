@@ -3,6 +3,7 @@ import Image from "next/image";
 import { requireProfile } from "@/lib/data"; 
 import { signOut } from "@/app/actions";
 import { NavLinks } from "@/components/nav-links";
+import { ChangePasswordModal } from "@/components/change-password-modal";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireProfile();
@@ -11,8 +12,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     profile.role === "requester"
       ? [
           { href: "/requests", label: "My Requests" },
-          { href: "/requests/new", label: "+ New Request" },
-          { href: "/closures", label: "Pending Closures" },
           { href: "/finance/vendors", label: "Vendors & Onboarding" },
         ]
       : profile.role === "finance"
@@ -22,7 +21,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             { href: "/requests", label: "All Requests" },
             { href: "/dashboard", label: "Executive Dashboard" },
             { href: "/finance/vendors", label: "Vendors" },
-            { href: "/finance/budget-heads", label: "Budget Heads" },
           ]
         : [
             { href: "/dashboard", label: "Executive Dashboard" },
@@ -30,58 +28,59 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             { href: "/settings", label: "Governance Limits" },
           ];
 
-
   return (
-    <div className="min-h-screen relative bg-[#07080B] text-slate-100">
-      {/* Radiant Background Glowing Auras */}
-      <div className="pointer-events-none fixed -top-40 -left-40 h-[650px] w-[650px] rounded-full bg-[#E88C38]/10 blur-[160px]" />
-      <div className="pointer-events-none fixed -bottom-40 -right-40 h-[650px] w-[650px] rounded-full bg-[#F5A623]/10 blur-[160px]" />
-      <div className="pointer-events-none fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[750px] w-[750px] rounded-full bg-[#10B981]/05 blur-[180px]" />
-      <div className="pointer-events-none fixed inset-0 bg-grid-dots opacity-40" />
+    <div className="min-h-screen relative bg-[#f7f4ed] text-[#14261c]">
+      {/* Radiant Background Soft Glowing Auras */}
+      <div className="pointer-events-none fixed -top-40 -left-40 h-[650px] w-[650px] rounded-full bg-[#1e3e30]/05 blur-[140px]" />
+      <div className="pointer-events-none fixed -bottom-40 -right-40 h-[650px] w-[650px] rounded-full bg-[#d97706]/05 blur-[140px]" />
+      <div className="pointer-events-none fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[750px] w-[750px] rounded-full bg-[#2d5a44]/04 blur-[160px]" />
+      <div className="pointer-events-none fixed inset-0 bg-grid-dots opacity-50" />
 
-      {/* Ambient Center-Fixed Background Typographic Branding with Soft Glow */}
+      {/* Ambient Background Typographic Watermark */}
       <div className="pointer-events-none fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center select-none z-0">
-        <div className="absolute h-64 w-[600px] max-w-[90vw] rounded-full bg-amber-500/10 blur-[100px]" />
-        <span className="text-[16vw] font-black uppercase tracking-[0.22em] text-transparent bg-clip-text bg-gradient-to-b from-white/15 via-amber-200/10 to-transparent drop-shadow-[0_0_45px_rgba(245,166,35,0.12)] font-sans leading-none pl-6">
+        <span className="text-[16vw] font-black uppercase tracking-[0.22em] text-[#1e3e30]/[0.025] font-sans leading-none pl-6">
           JETFLO
         </span>
       </div>
 
-      {/* Permanent Locked / Sticky Header & Tabs */}
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#090C10]/95 backdrop-blur-2xl shadow-[0_12px_35px_-10px_rgba(0,0,0,0.9)]">
+      {/* Sticky Header & Tabs */}
+      <header className="sticky top-0 z-40 border-b border-[#e5decb] bg-white/90 backdrop-blur-xl shadow-[0_4px_20px_-5px_rgba(26,40,31,0.06)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 py-3">
-          {/* Enhanced High-Visibility Logo with Circular Transparent Badge */}
+          {/* High-Visibility Logo with Circular Badge */}
           <Link href="/" className="flex items-center gap-3.5 group">
-            <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-amber-500/40 bg-gradient-to-br from-amber-500/20 via-black/60 to-black p-1 shadow-[0_0_20px_rgba(245,166,35,0.3)] transition-all duration-300 group-hover:scale-105 group-hover:border-amber-400 group-hover:shadow-[0_0_25px_rgba(245,166,35,0.5)]">
+            <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-[#c8bd9f] bg-gradient-to-br from-[#f2ece0] to-white p-1 shadow-xs transition-all duration-300 group-hover:scale-105 group-hover:border-[#1e3e30]">
               <Image
                 src="/jetflo-logo.jpeg"
                 alt="JetFlo"
                 width={48}
                 height={48}
-                className="h-full w-full object-cover rounded-full mix-blend-lighten"
+                className="h-full w-full object-cover rounded-full"
                 priority
               />
             </div>
             <div>
-              <div className="text-lg font-extrabold tracking-tight text-white flex items-center gap-2">
-                JetFlo <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/25 to-amber-500/10 text-amber-300 border border-amber-500/40 shadow-[0_0_10px_rgba(245,166,35,0.25)]">Funds</span>
+              <div className="text-lg font-extrabold tracking-tight text-[#14261c] flex items-center gap-2">
+                JetFlo <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#eaf3ed] text-[#1e3e30] border border-[#cce3d4]">Funds</span>
               </div>
-              <p className="text-[11px] text-[#8E9CA6] font-semibold tracking-wide">Claro Energy Limited</p>
+              <p className="text-[11px] text-[#536658] font-bold tracking-wide">Claro Energy Limited</p>
             </div>
           </Link>
 
-          {/* User Profile & 3D Luxury Logout Button */}
-          <div className="flex items-center gap-4">
+          {/* User Profile & Actions */}
+          <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
-              <div className="text-xs font-bold text-white tracking-wide">{profile.name}</div>
-              <div className="flex items-center justify-end gap-1.5 text-[11px] text-[#8E9CA6] font-medium">
-                <span className="capitalize font-bold text-amber-400">{profile.role}</span>
+              <div className="text-xs font-bold text-[#14261c] tracking-wide">{profile.name}</div>
+              <div className="flex items-center justify-end gap-1.5 text-[11px] text-[#536658] font-semibold">
+                <span className="capitalize text-[#1e3e30] font-extrabold">{profile.role}</span>
                 <span>•</span>
                 <span className="truncate max-w-[140px]">{profile.plant}</span>
               </div>
             </div>
 
-            {/* 3D Logout Button from Uiverse.io by Spacious74 */}
+            {/* Change Password Modal */}
+            <ChangePasswordModal />
+
+            {/* Logout Button */}
             <form action={signOut}>
               <button type="submit" className="logout-3d-button" title="Sign out of JetFlo">
                 <div className="inner">
@@ -94,7 +93,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="h-3.5 w-3.5 text-amber-400"
+                      className="h-3.5 w-3.5 text-[#1e3e30]"
                     >
                       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                       <polyline points="16 17 21 12 16 7" />
@@ -108,8 +107,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        {/* Locked Navigation Tab Row */}
-        <nav className="mx-auto max-w-6xl border-t border-white/5 px-4 sm:px-6">
+        {/* Navigation Tab Row */}
+        <nav className="mx-auto max-w-6xl border-t border-[#f0ebd9] px-4 sm:px-6">
           <NavLinks links={links} />
         </nav>
       </header>

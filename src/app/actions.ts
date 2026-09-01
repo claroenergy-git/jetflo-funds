@@ -609,3 +609,26 @@ export async function updateGovernanceSettings(_prev: ActionResult | null, formD
   return { ok: true };
 }
 
+export async function changeUserPassword(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const { supabase } = await ctx();
+  const newPassword = String(formData.get("new_password") || "").trim();
+  const confirmPassword = String(formData.get("confirm_password") || "").trim();
+
+  if (!newPassword || newPassword.length < 6) {
+    return { ok: false, error: "New password must be at least 6 characters long." };
+  }
+  if (newPassword !== confirmPassword) {
+    return { ok: false, error: "New password and confirmation do not match." };
+  }
+
+  const { error } = await supabase.auth.updateUser({
+    password: newPassword,
+  });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true };
+}
+

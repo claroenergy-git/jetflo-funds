@@ -1,7 +1,8 @@
 import { getSupabase } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/data";
-import { PageTitle, Card, Alert } from "@/components/ui";
-import { VendorOnboardingForm, VendorApprovalActions } from "@/components/master-forms";
+import { PageTitle } from "@/components/ui";
+import { VendorApprovalActions } from "@/components/master-forms";
+import { ExpandableVendorOnboarding } from "@/components/expandable-vendor-onboarding";
 
 export default async function VendorsPage() {
   const profile = await requireProfile();
@@ -31,15 +32,15 @@ export default async function VendorsPage() {
 
       {/* Finance Pending Approvals Alert / Banner */}
       {isFinance && pendingVendors.length > 0 && (
-        <div className="bento-card border border-amber-500/30 bg-amber-500/[0.04] p-5 shadow-[0_0_25px_rgba(245,166,35,0.15)]">
+        <div className="bento-card border border-[#fde68a] bg-[#fffbeb] p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
-              <span className="h-3 w-3 rounded-full bg-amber-400 animate-pulse shadow-[0_0_10px_#f5a623]" />
-              <h2 className="text-base font-bold text-amber-300">
+              <span className="h-3 w-3 rounded-full bg-[#d97706] animate-pulse" />
+              <h2 className="text-base font-bold text-[#92400e]">
                 Pending Accounts Verification ({pendingVendors.length})
               </h2>
             </div>
-            <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
+            <span className="text-xs font-bold text-[#92400e] bg-[#fef3c7] px-3 py-1 rounded-full border border-[#fde68a]">
               Action Required by accounts@claroenergy.in
             </span>
           </div>
@@ -47,7 +48,7 @@ export default async function VendorsPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[650px] text-sm">
               <thead>
-                <tr className="border-b border-white/10 bg-white/[0.02] text-left text-xs font-bold uppercase tracking-wider text-[#8E9CA6]">
+                <tr className="border-b border-[#fde68a] bg-[#fef3c7]/60 text-left text-xs font-bold uppercase tracking-wider text-[#92400e]">
                   <th className="px-4 py-3">Vendor / Entity</th>
                   <th className="px-4 py-3">GSTIN / PAN</th>
                   <th className="px-4 py-3">Bank Details</th>
@@ -55,23 +56,23 @@ export default async function VendorsPage() {
                   <th className="px-4 py-3 text-right">Verification Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-[#fde68a]/50">
                 {pendingVendors.map((v) => (
-                  <tr key={v.id} className="hover:bg-white/[0.02]">
-                    <td className="px-4 py-3 font-bold text-white">
+                  <tr key={v.id} className="hover:bg-white/60">
+                    <td className="px-4 py-3 font-bold text-[#14261c]">
                       <div>{v.name}</div>
-                      <div className="text-[11px] text-[#8E9CA6] font-normal">Pending Approval</div>
+                      <div className="text-[11px] text-[#92400e] font-semibold">Pending Approval</div>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-amber-300">
+                    <td className="px-4 py-3 font-mono text-xs text-[#92400e] font-semibold">
                       {v.gstin ?? "Exempt / Unregistered"}
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-300">
-                      <div className="font-semibold text-white">{v.bank_name ?? "—"}</div>
-                      <div className="font-mono text-[#8E9CA6]">
+                    <td className="px-4 py-3 text-xs text-[#536658]">
+                      <div className="font-bold text-[#14261c]">{v.bank_name ?? "—"}</div>
+                      <div className="font-mono text-[#7a8d80]">
                         {v.account_no ? `••••${v.account_no.slice(-4)}` : "—"}
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-300">{v.ifsc ?? "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-[#14261c] font-semibold">{v.ifsc ?? "—"}</td>
                     <td className="px-4 py-3 text-right">
                       <VendorApprovalActions vendorId={v.id} vendorName={v.name} />
                     </td>
@@ -83,83 +84,75 @@ export default async function VendorsPage() {
         </div>
       )}
 
-      {/* Main Grid: Directory & Onboarding Form */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
-        {/* Approved Vendor Directory */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-white">
-              Approved Vendors ({approvedVendors.length})
-            </h2>
-            <span className="text-xs text-[#8E9CA6]">Universal Across Categories</span>
-          </div>
+      {/* Feature: Expandable Onboarding Form with Rolling UI Animation */}
+      <ExpandableVendorOnboarding isFinance={isFinance} />
 
-          <div className="bento-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[580px] text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 bg-white/[0.02] text-left text-xs font-bold uppercase tracking-wider text-[#8E9CA6]">
-                    <th className="px-5 py-3.5">Vendor Name</th>
-                    <th className="px-5 py-3.5">GSTIN</th>
-                    <th className="px-5 py-3.5">Disbursement Bank</th>
-                    <th className="px-5 py-3.5 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {approvedVendors.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-5 py-8 text-center text-xs text-[#8E9CA6]">
-                        No approved vendors found. Use the onboarding form to add vendors.
-                      </td>
-                    </tr>
-                  ) : (
-                    approvedVendors.map((v) => (
-                      <tr key={v.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="px-5 py-3.5 font-bold text-white">
-                          <div className="flex items-center gap-2">
-                            <span>{v.name}</span>
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5 font-mono text-xs text-amber-300/90">
-                          {v.gstin ?? "—"}
-                        </td>
-                        <td className="px-5 py-3.5 text-xs text-slate-300">
-                          <div className="font-semibold">{v.bank_name ?? "—"}</div>
-                          <div className="font-mono text-[11px] text-[#8E9CA6]">
-                            {v.ifsc && `IFSC: ${v.ifsc}`}
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5 text-right">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
-                            Active
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+      {/* Approved Vendor Directory Card */}
+      <div className="bento-card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5decb] bg-[#fbf9f4] px-6 py-4">
+          <div>
+            <h2 className="text-sm font-bold text-[#14261c] flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#166534]" />
+              Approved Vendors Directory ({approvedVendors.length})
+            </h2>
+            <p className="text-xs text-[#536658] mt-0.5">Universal directory across CAPEX & Raw Material</p>
           </div>
+          <span className="text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-[#dcfce7] text-[#166534] border border-[#bbf7d0]">
+            Active Master
+          </span>
         </div>
 
-        {/* Onboarding Form Card */}
-        <div>
-          <Card className="p-5 sticky top-20 border border-white/15 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-            <div className="mb-4 pb-3 border-b border-white/10">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <span className="text-amber-400">🏢</span>
-                <span>{isFinance ? "Add / Onboard Vendor" : "Request Vendor Onboarding"}</span>
-              </h2>
-              <p className="text-[11px] text-[#8E9CA6] mt-1">
-                {isFinance
-                  ? "Finance team direct master entry with bank details"
-                  : "Ground team submission for accounts@claroenergy.in verification"}
-              </p>
-            </div>
-            <VendorOnboardingForm isFinance={isFinance} />
-          </Card>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[580px] text-sm">
+            <thead>
+              <tr className="border-b border-[#e5decb] bg-[#fbf9f4] text-left text-xs font-bold uppercase tracking-wider text-[#415546]">
+                <th className="px-6 py-3.5">Vendor Legal & Trade Name</th>
+                <th className="px-6 py-3.5">GSTIN & Tax ID</th>
+                <th className="px-6 py-3.5">Disbursement Bank & Account</th>
+                <th className="px-6 py-3.5 text-right">Directory Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e5decb]">
+              {approvedVendors.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-12 text-center text-xs text-[#536658]">
+                    <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-[#f0ebd9] text-[#1e3e30] text-lg">
+                      🏢
+                    </div>
+                    No approved vendors found in directory. Use the onboarding form above to add vendors.
+                  </td>
+                </tr>
+              ) : (
+                approvedVendors.map((v) => (
+                  <tr key={v.id} className="hover:bg-[#fbf9f4] transition-colors">
+                    <td className="px-6 py-4 font-bold text-[#14261c]">
+                      <div className="flex items-center gap-2">
+                        <span>{v.name}</span>
+                        <span className="h-2 w-2 rounded-full bg-[#166534]" />
+                      </div>
+                      {v.trade_name && (
+                        <div className="text-[11px] font-normal text-[#536658] mt-0.5">{v.trade_name}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 font-mono text-xs text-[#1e3e30] font-semibold">
+                      {v.gstin ?? "GST Exempt / Unregistered"}
+                    </td>
+                    <td className="px-6 py-4 text-xs text-[#536658]">
+                      <div className="font-bold text-[#14261c]">{v.bank_name ?? "—"}</div>
+                      <div className="font-mono text-[11px] text-[#7a8d80] mt-0.5">
+                        {v.ifsc ? `IFSC: ${v.ifsc}` : "—"}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#dcfce7] text-[#166534] border border-[#bbf7d0]">
+                        Active
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

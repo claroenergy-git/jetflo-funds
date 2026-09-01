@@ -13,14 +13,14 @@ export function NavLinks({ links }: { links: { href: string; label: string }[] }
           <Link
             key={l.href}
             href={l.href}
-            className={`relative whitespace-nowrap rounded-xl px-3.5 py-1.5 text-xs font-semibold tracking-wide transition-all ${
+            className={`relative whitespace-nowrap rounded-xl px-4 py-2 text-xs font-bold tracking-wide transition-all ${
               active
-                ? "bg-gradient-to-r from-amber-500/20 to-amber-500/10 text-amber-300 border border-amber-500/40 shadow-[0_0_15px_rgba(232,140,56,0.15)]"
-                : "text-[#8E9CA6] hover:bg-white/5 hover:text-white border border-transparent"
+                ? "bg-[#1e3e30] text-white border border-[#1e3e30] shadow-[0_2px_8px_rgba(30,62,48,0.2)]"
+                : "text-[#536658] hover:bg-[#f0ebd9] hover:text-[#14261c] border border-transparent"
             }`}
           >
             {active && (
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400 mr-1.5 shadow-[0_0_8px_#f5a623]" />
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#a3d9be] mr-2" />
             )}
             {l.label}
           </Link>
