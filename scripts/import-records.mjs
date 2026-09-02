@@ -95,6 +95,11 @@ for (const r of records) {
   const unitRate = parseFloat(r['Unit Rate (INR)']) || null;
   const amountRequested = parseFloat(r['Requested Amount (INR)']) || (unitRate ? qty * unitRate : 1000);
   const amountApproved = parseFloat(r['Approved Amount (INR)']) || amountRequested;
+  const rawType = (r['Payment Type (Advance / Against Invoice / Balance)'] || 'against_invoice').toLowerCase();
+  let paymentType = 'against_invoice';
+  if (rawType.includes('adv')) paymentType = 'advance';
+  else if (rawType.includes('bal')) paymentType = 'balance';
+
   const rawStatus = (r['Status (Paid / Closed / Approved / Rejected / Submitted)'] || 'paid').toLowerCase();
   
   let status = 'paid';
@@ -103,6 +108,8 @@ for (const r of records) {
   else if (rawStatus.includes('submit')) status = 'submitted';
   else if (rawStatus.includes('draft')) status = 'draft';
   else if (rawStatus.includes('appr')) status = 'approved';
+
+  const goodsReceived = (r['Goods Received / Advance Settled (Yes / No)'] || '').toLowerCase().includes('y') || status === 'closed';
 
   const payDate = r['Payment Date (YYYY-MM-DD)'] || reqDate;
   const amountPaid = parseFloat(r['Amount Paid (INR)']) || (['paid', 'closed'].includes(status) ? amountApproved : 0);
@@ -133,7 +140,6 @@ for (const r of records) {
         ifsc,
         category: 'both',
         active: true,
-        status: 'approved',
       })
       .select('id')
       .single();
@@ -189,7 +195,8 @@ for (const r of records) {
       amount_approved: amountApproved,
       amount_paid: amountPaid,
       status,
-      payment_type: 'against_invoice',
+      payment_type: paymentType,
+      goods_received: goodsReceived,
       justification: remarks,
       requester_id: requester.id,
       approved_by: ['approved', 'paid', 'closed'].includes(status) ? defaultFinance.id : null,

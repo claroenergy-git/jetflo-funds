@@ -39,11 +39,26 @@ export async function proxy(request: NextRequest) {
     }
   );
 
+  const pathname = request.nextUrl.pathname;
+  const isPublicAsset =
+    pathname.endsWith(".csv") ||
+    pathname.endsWith(".xlsx") ||
+    pathname.endsWith(".pdf") ||
+    pathname.endsWith(".ico") ||
+    pathname.endsWith(".jpeg") ||
+    pathname.endsWith(".jpg") ||
+    pathname.endsWith(".png") ||
+    pathname.endsWith(".svg");
+
+  if (isPublicAsset) {
+    return response;
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isLogin = request.nextUrl.pathname.startsWith("/login");
+  const isLogin = pathname.startsWith("/login");
   if (!user && !isLogin) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -58,5 +73,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|csv|xlsx|pdf)$).*)"],
 };
