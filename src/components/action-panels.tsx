@@ -116,7 +116,7 @@ export function PaymentForm({ id, balance }: { id: string; balance: number }) {
       </div>
       <div>
         <label className={labelCls}>Paying Bank Account</label>
-        <input name="bank" className={inputCls} defaultValue="HDFC Bank — Claro Energy Ltd" />
+        <input name="bank" className={inputCls} defaultValue="HDFC Bank — Claro Manufacturing Pvt. Ltd." />
       </div>
       <div>
         <label className={labelCls}>Payment Proof (optional)</label>

@@ -50,6 +50,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const balance = Number(r.amount_approved ?? 0) - Number(r.amount_paid ?? 0);
   const isOwner = profile.role === "requester" && r.requester?.id === profile.id;
   const isFinance = profile.role === "finance";
+  const isLeadership = profile.role === "leadership";
   const editable = isOwner && (status === "draft" || status === "sent_back");
 
   let vendors: { id: string; name: string }[] = [];
@@ -210,13 +211,39 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
           </Card>
         )}
 
-        {/* Finance Decision Panel */}
-        {isFinance && (status === "submitted" || status === "awaiting_second_approval") && (
+        {/* Accounts / Finance Decision Panel for submitted requests */}
+        {isFinance && status === "submitted" && (
           <Card variant="amber">
             <h2 className="mb-3 text-sm font-bold text-[#92400e] flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-[#d97706]" />
-              Finance Sign-Off & Approval
+              Accounts Team Sign-Off & Verification
             </h2>
+            <DecisionPanel
+              id={r.id}
+              amountRequested={Number(r.amount_requested)}
+              amountApproved={r.amount_approved ? Number(r.amount_approved) : null}
+              status={status}
+            />
+          </Card>
+        )}
+
+        {/* Leadership Sign-Off Panel (Gaurav) for High-Priority Requests */}
+        {(isLeadership || isFinance) && status === "awaiting_second_approval" && (
+          <Card variant="amber" className="border-2 border-[#f59e0b] shadow-md">
+            <div className="mb-4 pb-3 border-b border-[#fde68a] flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-[#92400e] flex items-center gap-2">
+                  <span className="text-base">👑</span>
+                  High-Priority Leadership Sign-Off (Gaurav)
+                </h2>
+                <p className="text-xs text-[#92400e] mt-0.5 font-medium">
+                  First approval by Accounts completed ({inr(r.amount_approved)}). Leadership authorization required.
+                </p>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
+                High Priority
+              </span>
+            </div>
             <DecisionPanel
               id={r.id}
               amountRequested={Number(r.amount_requested)}

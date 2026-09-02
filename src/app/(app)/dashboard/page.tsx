@@ -199,6 +199,15 @@ export default async function DashboardPage({
           <button className="rounded-xl border border-[#dcd4c0] bg-white px-3.5 py-1.5 font-bold text-[#1e3e30] shadow-2xs hover:bg-[#f0ebd9] transition cursor-pointer">
             Filter
           </button>
+          <a
+            href="/jetflo_historical_data_template.csv"
+            download="JetFlo_Historical_Records_Template.csv"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#cce3d4] bg-[#eaf3ed] px-3.5 py-1.5 font-bold text-[#166534] shadow-2xs hover:bg-[#dcfce7] transition cursor-pointer"
+            title="Download CSV / Excel template to fill previous records"
+          >
+            <span>📥</span>
+            <span>Import Template</span>
+          </a>
         </form>
       </div>
 

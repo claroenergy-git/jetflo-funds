@@ -38,14 +38,14 @@ export function GovernanceSettingsForm({
           <div>
             <label className={`${labelCls} text-[#1e3e30] font-bold flex items-center gap-2`}>
               <span className="h-2 w-2 rounded-full bg-[#1e3e30]" />
-              Dual-Approval Threshold (2nd Approver Required Above)
+              High-Priority Leadership Approval Threshold (Gaurav / Director Sign-off)
             </label>
             <p className="text-xs text-[#536658]">
-              Any fund request approved above this amount will automatically require a <b>second finance approver</b> before funds can be disbursed.
+              Any ground team request approved at or above this amount (e.g. ₹10 Lakhs) will automatically require final sign-off from <b>Gaurav / Leadership</b> before payment disbursement.
             </p>
           </div>
           <div className="text-right">
-            <span className="text-xs text-[#536658] uppercase font-bold">Active Cap</span>
+            <span className="text-xs text-[#536658] uppercase font-bold">Leadership Trigger</span>
             <div className="text-xl font-extrabold text-[#166534] tabular-nums">
               {inr(threshold, { compact: false })}
             </div>

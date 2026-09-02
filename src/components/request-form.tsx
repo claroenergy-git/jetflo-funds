@@ -393,12 +393,18 @@ export function RequestForm({
       </div>
 
       {/* Submission Actions */}
-      <div className="flex gap-3 pt-2">
+      <div className="flex flex-wrap items-center gap-3 pt-2">
         <button name="intent" value="submit" disabled={pending} className={btnPrimary}>
           {pending ? "Submitting for Approval…" : "Submit for Approval"}
         </button>
-        <button name="intent" value="draft" disabled={pending} className={btnSecondary}>
-          Save as Draft
+        <button
+          name="intent"
+          value="draft"
+          disabled={pending}
+          formNoValidate
+          className={btnSecondary}
+        >
+          {pending ? "Saving Draft…" : "Save as Draft"}
         </button>
       </div>
     </form>

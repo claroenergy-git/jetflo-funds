@@ -1,6 +1,7 @@
 "use server";
 
-import { getSupabase } from "@/lib/supabase/server";
+import { getSupabase, getSupabaseAdmin } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -143,30 +144,44 @@ export async function createRequest(_prev: ActionResult | null, formData: FormDa
     duplicate_warning: isDupe,
   };
 
-  const { data: inserted, error } = await supabase
-    .from("jetflo_fund_requests")
-    .insert(insertPayload)
-    .select("id, request_no")
-    .single();
-  if (error) return { ok: false, error: error.message };
+  const existingId = String(formData.get("id") || "").trim();
+  let requestId = existingId;
+
+  const admin = getSupabaseAdmin();
+
+  if (existingId) {
+    const { error: upErr } = await admin
+      .from("jetflo_fund_requests")
+      .update(insertPayload)
+      .eq("id", existingId);
+    if (upErr) return { ok: false, error: upErr.message };
+  } else {
+    const { data: inserted, error } = await admin
+      .from("jetflo_fund_requests")
+      .insert(insertPayload)
+      .select("id, request_no")
+      .single();
+    if (error) return { ok: false, error: error.message };
+    requestId = inserted.id;
+  }
 
   if (docFile && docFile.size > 0) {
-    const upErr = await uploadAttachment(supabase, userId, inserted.id, docKind, docFile);
+    const upErr = await uploadAttachment(supabase, userId, requestId, docKind, docFile);
     if (upErr) return { ok: false, error: upErr };
   }
 
   if (intent === "submit") {
-    const { error: e2 } = await supabase
+    const { error: e2 } = await admin
       .from("jetflo_fund_requests")
-      .update({ status: "submitted" })
-      .eq("id", inserted.id);
+      .update({ status: "submitted", submitted_at: new Date().toISOString() })
+      .eq("id", requestId);
     if (e2) return { ok: false, error: e2.message };
   }
 
   revalidatePath("/", "layout");
   return {
     ok: true,
-    id: inserted.id,
+    id: requestId,
     warning: isDupe
       ? `Possible duplicate: a similar request to this vendor was raised in the last ${windowDays} days (${dupes!.map((d) => d.request_no).join(", ")}). Finance will see this flag.`
       : undefined,
@@ -201,21 +216,32 @@ export async function submitRequest(_prev: ActionResult | null, formData: FormDa
     if (upErr) return { ok: false, error: upErr };
   }
 
-  const { error } = await supabase.from("jetflo_fund_requests").update({ status: "submitted" }).eq("id", id);
+  const admin = getSupabaseAdmin();
+  const { error } = await admin.from("jetflo_fund_requests").update({ status: "submitted", submitted_at: new Date().toISOString() }).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/", "layout");
   return { ok: true };
 }
 
 export async function financeDecide(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const { supabase } = await ctx();
+  const { supabase, userId } = await ctx();
+  const { data: userProfile } = await supabase.from("jetflo_users").select("role, name").eq("id", userId).single();
+  const isFinance = userProfile?.role === "finance";
+  const isLeadership = userProfile?.role === "leadership";
+
+  if (!isFinance && !isLeadership) {
+    return { ok: false, error: "Access Denied: Only Accounts or Leadership can approve fund requests." };
+  }
+
   const id = String(formData.get("id"));
   const decision = String(formData.get("decision")); // approve | partial | reject | send_back
   const remarks = String(formData.get("remarks") || "").trim();
 
-  const { data: req } = await supabase
+  const admin = getSupabaseAdmin();
+
+  const { data: req } = await admin
     .from("jetflo_fund_requests")
-    .select("status, amount_requested, amount_approved")
+    .select("status, amount_requested, amount_approved, approved_by")
     .eq("id", id)
     .single();
   if (!req) return { ok: false, error: "Request not found" };
@@ -223,44 +249,61 @@ export async function financeDecide(_prev: ActionResult | null, formData: FormDa
   let update: Record<string, unknown> = {};
 
   if (decision === "reject") {
-    if (!remarks) return { ok: false, error: "A rejection reason is required" };
-    update = { status: "rejected", rejection_reason: remarks };
+    if (!remarks) return { ok: false, error: "A rejection reason is required." };
+    update = { status: "rejected", rejection_reason: remarks, decided_at: new Date().toISOString() };
   } else if (decision === "send_back") {
-    if (!remarks) return { ok: false, error: "Remarks are required when sending back" };
-    update = { status: "sent_back", approval_remarks: remarks };
+    if (!remarks) return { ok: false, error: "Remarks are required when sending back." };
+    update = { status: "sent_back", approval_remarks: remarks, decided_at: new Date().toISOString() };
   } else {
     const amount =
       req.status === "awaiting_second_approval"
-        ? Number(req.amount_approved)
+        ? Number(req.amount_approved || req.amount_requested)
         : Number(formData.get("amount_approved") || req.amount_requested);
-    if (!amount || amount <= 0) return { ok: false, error: "Enter a valid approved amount" };
+    if (!amount || amount <= 0) return { ok: false, error: "Enter a valid approved amount." };
     const isPartial = decision === "partial" || amount < Number(req.amount_requested);
-    if (isPartial && !remarks) return { ok: false, error: "Remarks are required for partial approval" };
+    if (isPartial && !remarks) return { ok: false, error: "Remarks are required for partial approval." };
 
-    const threshold = await setting(supabase, "second_approver_above");
-    if (req.status === "submitted" && amount > threshold) {
+    const threshold = await setting(supabase, "second_approver_above") || 1000000;
+
+    if (req.status === "submitted" && amount >= threshold) {
+      // High-priority request >= threshold: Moves to Leadership Sign-Off (Gaurav)
       update = {
         status: "awaiting_second_approval",
         amount_approved: amount,
-        approval_remarks: remarks || `Above ₹${threshold.toLocaleString("en-IN")} — second approval required`,
+        approved_by: userId,
+        decided_at: new Date().toISOString(),
+        approval_remarks: remarks || `High-Priority (≥ ₹${threshold.toLocaleString("en-IN")}) — Leadership sign-off (Gaurav) required`,
+      };
+    } else if (req.status === "awaiting_second_approval") {
+      // Leadership final approval
+      update = {
+        status: "approved",
+        amount_approved: amount,
+        second_approved_by: userId,
+        decided_at: new Date().toISOString(),
+        approval_remarks: remarks ? `${remarks} (Leadership Approved by ${userProfile?.name || "Leadership"})` : `Leadership Approved by ${userProfile?.name || "Leadership"}`,
       };
     } else {
+      // Standard approval below threshold
       update = {
         status: isPartial ? "partially_approved" : "approved",
         amount_approved: amount,
+        approved_by: userId,
+        decided_at: new Date().toISOString(),
         approval_remarks: remarks || null,
       };
     }
   }
 
-  const { error } = await supabase.from("jetflo_fund_requests").update(update).eq("id", id);
+  const { error } = await admin.from("jetflo_fund_requests").update(update).eq("id", id);
   if (error) return { ok: false, error: error.message.replace(/^.*?exception:\s*/i, "") };
+
   revalidatePath("/", "layout");
   return {
     ok: true,
     warning:
       update.status === "awaiting_second_approval"
-        ? "Above the approval limit — parked for a second finance approver."
+        ? "High-Priority Request: Parked for Leadership Sign-Off (Gaurav)."
         : undefined,
   };
 }
@@ -271,7 +314,9 @@ export async function recordPayment(_prev: ActionResult | null, formData: FormDa
   const amount = Number(formData.get("amount_paid"));
   if (!amount || amount <= 0) return { ok: false, error: "Enter a valid amount" };
 
-  const { error } = await supabase.from("jetflo_payments").insert({
+  const admin = getSupabaseAdmin();
+
+  const { error } = await admin.from("jetflo_payments").insert({
     request_id: requestId,
     amount_paid: amount,
     paid_on: String(formData.get("paid_on")),
@@ -297,12 +342,14 @@ export async function closeRequest(_prev: ActionResult | null, formData: FormDat
   const id = String(formData.get("id"));
   if (!formData.get("goods_received")) return { ok: false, error: "Confirm goods/services were received" };
 
+  const admin = getSupabaseAdmin();
+
   const invoice = formData.get("invoice") as File | null;
   if (invoice && invoice.size > 0) {
     const upErr = await uploadAttachment(supabase, userId, id, "invoice", invoice);
     if (upErr) return { ok: false, error: upErr };
   } else {
-    const { data: atts } = await supabase
+    const { data: atts } = await admin
       .from("jetflo_attachments")
       .select("id")
       .eq("request_id", id)
@@ -310,9 +357,9 @@ export async function closeRequest(_prev: ActionResult | null, formData: FormDat
     if (!atts?.length) return { ok: false, error: "Upload the final invoice / GRN to close this request" };
   }
 
-  const { error } = await supabase
+  const { error } = await admin
     .from("jetflo_fund_requests")
-    .update({ status: "closed", goods_received: true })
+    .update({ status: "closed", goods_received: true, closed_at: new Date().toISOString() })
     .eq("id", id);
   if (error) return { ok: false, error: error.message.replace(/^.*?exception:\s*/i, "") };
   revalidatePath("/", "layout");
@@ -326,8 +373,11 @@ export async function onboardVendor(_prev: ActionResult | null, formData: FormDa
   const { data: userProfile } = await supabase.from("jetflo_users").select("role").eq("id", userId).single();
   const isFinance = userProfile?.role === "finance";
 
+  const isForeign = formData.get("is_foreign") === "true";
   const name = String(formData.get("name") || "").trim();
+  const tradeName = String(formData.get("trade_name") || "").trim();
   const gstin = String(formData.get("gstin") || "").trim().toUpperCase();
+  const vatNo = String(formData.get("vat_no") || "").trim().toUpperCase();
   const panInput = String(formData.get("pan") || "").trim().toUpperCase();
   const isUnregistered = formData.get("is_unregistered") === "true" || formData.get("is_unregistered") === "1";
   const contactPerson = String(formData.get("contact_person") || "").trim();
@@ -336,74 +386,117 @@ export async function onboardVendor(_prev: ActionResult | null, formData: FormDa
   const addressLine = String(formData.get("address_line") || "").trim();
   const city = String(formData.get("city") || "").trim();
   const state = String(formData.get("state") || "").trim();
+  const country = String(formData.get("country") || "India").trim();
   const pincode = String(formData.get("pincode") || "").trim();
   const bankName = String(formData.get("bank_name") || "").trim();
   const accountNo = String(formData.get("account_no") || "").trim();
   const confirmAccountNo = String(formData.get("confirm_account_no") || "").trim();
   const ifsc = String(formData.get("ifsc") || "").trim().toUpperCase();
-  const bankBeneficiary = String(formData.get("bank_beneficiary_name") || name).trim();
-  const accountType = String(formData.get("account_type") || "current");
+  const swiftCode = String(formData.get("swift_code") || "").trim().toUpperCase();
+  const bankDocType = String(formData.get("bank_doc_type") || (isForeign ? "letterhead_profile" : "cancelled_cheque"));
 
   // Validations
-  if (!name || name.length < 2) return { ok: false, error: "Vendor / Legal business name is mandatory." };
-  if (!isUnregistered) {
-    if (!gstin) return { ok: false, error: "GSTIN is mandatory (or check 'Unregistered / Exempt' if not applicable)." };
-    const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-    if (!gstinRegex.test(gstin)) {
-      return { ok: false, error: "Invalid GSTIN format. Must be 15 alphanumeric characters (e.g., 33AABCS1234F1Z5)." };
-    }
+  if (!name || name.length < 2) return { ok: false, error: "Legal Business Name is mandatory." };
+  if (!contactPerson) return { ok: false, error: "Contact person name is mandatory." };
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, error: "Please enter a valid email address for accounts." };
   }
 
-  // PAN validation
-  const pan = gstin && gstin.length >= 12 ? gstin.slice(2, 12) : panInput;
-  if (pan) {
-    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
-    if (!panRegex.test(pan)) {
-      return { ok: false, error: "Invalid PAN format. Must be 10 characters (e.g., ABCDE1234F)." };
+  // Phone validation
+  if (!phone) return { ok: false, error: "Phone number is mandatory." };
+  const cleanPhone = phone.replace(/[^\d+]/g, "");
+  if (isForeign) {
+    if (cleanPhone.length < 6 || cleanPhone.length > 16) {
+      return { ok: false, error: "Foreign phone number should be between 6 to 15 digits." };
     }
-  }
-
-  // Contact validations
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { ok: false, error: "Please enter a valid email address." };
-  }
-  if (phone) {
-    const cleanPhone = phone.replace(/\D/g, "");
-    if (cleanPhone.length < 10) {
+  } else {
+    const digitsOnly = phone.replace(/\D/g, "");
+    if (digitsOnly.length < 10) {
       return { ok: false, error: "Please enter a valid 10-digit mobile number." };
     }
   }
 
-  // Bank validations
-  if (!bankName) return { ok: false, error: "Bank name is mandatory." };
-  if (!accountNo) return { ok: false, error: "Bank account number is mandatory." };
-  if (confirmAccountNo && confirmAccountNo !== accountNo) {
-    return { ok: false, error: "Bank account numbers do not match." };
+  // Domestic vs Foreign statutory validations
+  if (!isForeign) {
+    if (!isUnregistered) {
+      if (!gstin) return { ok: false, error: "GSTIN is mandatory (or check 'Unregistered / Exempt')." };
+      const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+      if (!gstinRegex.test(gstin)) {
+        return { ok: false, error: "Invalid GSTIN format. Must be 15 alphanumeric characters (e.g., 33AABCS1234F1Z5)." };
+      }
+    }
+    const pan = gstin && gstin.length >= 12 ? gstin.slice(2, 12) : panInput;
+    if (pan) {
+      const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+      if (!panRegex.test(pan)) {
+        return { ok: false, error: "Invalid PAN format. Must be 10 characters (e.g., ABCDE1234F)." };
+      }
+    }
+  } else {
+    if (!vatNo || vatNo.length < 3) {
+      return { ok: false, error: "VAT / International Tax ID Number is mandatory for foreign vendors." };
+    }
+    if (!country) return { ok: false, error: "Country is mandatory for foreign vendors." };
   }
-  if (!ifsc) return { ok: false, error: "IFSC code is mandatory." };
-  const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-  if (!ifscRegex.test(ifsc)) {
-    return { ok: false, error: "Invalid IFSC code format (e.g., HDFC0000123)." };
+
+  // Banking validations
+  if (!bankName) return { ok: false, error: "Bank name is mandatory." };
+  if (!accountNo || accountNo.length < 6) return { ok: false, error: "Please enter a valid bank account / IBAN number." };
+  if (confirmAccountNo && confirmAccountNo !== accountNo) {
+    return { ok: false, error: "Bank account / IBAN numbers do not match." };
+  }
+
+  if (isForeign) {
+    if (!swiftCode || swiftCode.length < 8 || swiftCode.length > 11) {
+      return { ok: false, error: "Invalid SWIFT / BIC code. Must be 8 to 11 alphanumeric characters (e.g., DEUTDEDDFXX)." };
+    }
+  } else {
+    if (!ifsc) return { ok: false, error: "IFSC code is mandatory." };
+    const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+    if (!ifscRegex.test(ifsc)) {
+      return { ok: false, error: "Invalid IFSC code format (e.g., HDFC0000123)." };
+    }
   }
 
   const bankProof = formData.get("bank_proof") as File | null;
   if (!isFinance && (!bankProof || bankProof.size === 0)) {
-    return { ok: false, error: "A Cancelled Cheque / Bank Passbook document is mandatory for accounts verification." };
+    const docLabel = bankDocType === "letterhead_profile"
+      ? "Accounting Profile on Letterhead / Wire Specimen"
+      : "Cancelled Cheque / Bank Passbook";
+    return { ok: false, error: `A ${docLabel} document is mandatory for accounts verification.` };
   }
 
   // Active status: Finance onboarded is immediately active; Ground team onboarded is inactive (pending approval)
   const isActive = isFinance ? true : false;
+  const status = isFinance ? "approved" : "pending_approval";
 
-  const { data: inserted, error } = await supabase
+  const admin = getSupabaseAdmin();
+
+  const panVal = !isForeign ? (gstin && gstin.length >= 12 ? gstin.slice(2, 12) : panInput || null) : null;
+  const gstinVal = !isForeign ? (isUnregistered ? null : gstin) : (vatNo || null);
+  const ifscVal = isForeign ? swiftCode : ifsc;
+  const stateVal = isForeign ? country : (state || null);
+
+  const { data: inserted, error } = await admin
     .from("jetflo_vendors")
     .insert({
       name,
-      gstin: isUnregistered ? null : gstin,
+      trade_name: tradeName || null,
+      gstin: gstinVal,
+      pan: panVal,
+      contact_person: contactPerson,
+      email: email || null,
+      phone: phone || null,
+      address_line: addressLine || null,
+      city: city || null,
+      state: stateVal,
+      pincode: pincode || null,
       bank_name: bankName,
       account_no: accountNo,
-      ifsc,
+      ifsc: ifscVal,
       category: "both",
       active: isActive,
+      status,
       created_by: userId,
     })
     .select("id, name")
@@ -414,15 +507,15 @@ export async function onboardVendor(_prev: ActionResult | null, formData: FormDa
   // If attachments are provided, upload to storage
   if (bankProof && bankProof.size > 0) {
     const safe = bankProof.name.replace(/[^\w.\-]+/g, "_");
-    const path = `vendor-docs/${inserted.id}/bank_proof-${Date.now()}-${safe}`;
-    await supabase.storage.from("jetflo-docs").upload(path, bankProof);
+    const path = `vendor-docs/${inserted.id}/${bankDocType}-${Date.now()}-${safe}`;
+    await admin.storage.from("jetflo-docs").upload(path, bankProof, { upsert: true });
   }
 
   const gstCert = formData.get("gst_cert") as File | null;
   if (gstCert && gstCert.size > 0) {
     const safe = gstCert.name.replace(/[^\w.\-]+/g, "_");
-    const path = `vendor-docs/${inserted.id}/gst_cert-${Date.now()}-${safe}`;
-    await supabase.storage.from("jetflo-docs").upload(path, gstCert);
+    const path = `vendor-docs/${inserted.id}/tax_cert-${Date.now()}-${safe}`;
+    await admin.storage.from("jetflo-docs").upload(path, gstCert, { upsert: true });
   }
 
   revalidatePath("/", "layout");
@@ -431,7 +524,7 @@ export async function onboardVendor(_prev: ActionResult | null, formData: FormDa
     id: inserted.id,
     warning: isActive
       ? undefined
-      : "Vendor onboarding request submitted successfully! Accounts team (accounts@claroenergy.in) has been queued for verification.",
+      : `Vendor onboarding request for ${name} (${isForeign ? "Foreign / Import" : "Domestic"}) submitted! Accounts team (accounts@claroenergy.in) has been queued for dual-control verification.`,
   };
 }
 
@@ -445,7 +538,16 @@ export async function approveVendor(_prev: ActionResult | null, formData: FormDa
   const vendorId = String(formData.get("vendor_id") || "").trim();
   if (!vendorId) return { ok: false, error: "Vendor ID required." };
 
-  const { error } = await supabase.from("jetflo_vendors").update({ active: true }).eq("id", vendorId);
+  const admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
+  const { error } = await admin
+    .from("jetflo_vendors")
+    .update({ active: true, status: "approved" })
+    .eq("id", vendorId);
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/", "layout");
@@ -462,16 +564,22 @@ export async function rejectVendor(_prev: ActionResult | null, formData: FormDat
   const vendorId = String(formData.get("vendor_id") || "").trim();
   if (!vendorId) return { ok: false, error: "Vendor ID required." };
 
+  const admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
   // If vendor has no fund requests, delete; otherwise deactivate
-  const { count } = await supabase
+  const { count } = await admin
     .from("jetflo_fund_requests")
     .select("id", { count: "exact", head: true })
     .eq("vendor_id", vendorId);
 
   if (!count || count === 0) {
-    await supabase.from("jetflo_vendors").delete().eq("id", vendorId);
+    await admin.from("jetflo_vendors").delete().eq("id", vendorId);
   } else {
-    await supabase.from("jetflo_vendors").update({ active: false }).eq("id", vendorId);
+    await admin.from("jetflo_vendors").update({ active: false, status: "rejected" }).eq("id", vendorId);
   }
 
   revalidatePath("/", "layout");

@@ -96,12 +96,12 @@ export default function LoginPage() {
           {/* Logo & Header Section with Circular Luxury Badge */}
           <div className="relative mb-8 text-center flex flex-col items-center">
             <div className="relative mb-4 flex items-center justify-center">
-              <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-[#c8bd9f] bg-gradient-to-br from-[#f2ece0] to-white p-1.5 shadow-md">
+              <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border border-[#c8bd9f] bg-gradient-to-br from-[#f2ece0] to-white p-1.5 shadow-md">
                 <Image
                   src="/jetflo-logo.jpeg"
                   alt="JetFlo Logo"
-                  width={80}
-                  height={80}
+                  width={96}
+                  height={96}
                   priority
                   className="h-full w-full object-cover rounded-full"
                 />
@@ -117,7 +117,7 @@ export default function LoginPage() {
               JetFlo <span className="font-semibold text-[#536658]">Manufacturing</span>
             </h1>
             <p className="mt-1 text-xs text-[#536658] font-bold">
-              Subsidiary of <span className="font-extrabold text-[#14261c]">Claro Energy Limited</span>
+              <span className="font-extrabold text-[#14261c]">Claro Manufacturing Pvt. Ltd.</span>
             </p>
           </div>
 

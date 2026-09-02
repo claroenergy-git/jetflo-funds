@@ -9,7 +9,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "JetFlo Funds Portal — Claro Energy",
+  title: "JetFlo Funds Portal — Claro Manufacturing Pvt. Ltd.",
   description: "Executive Fund Request & Spend Governance Portal for JetFlo Manufacturing Unit",
 };
 

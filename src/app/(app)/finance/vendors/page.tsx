@@ -123,33 +123,41 @@ export default async function VendorsPage() {
                   </td>
                 </tr>
               ) : (
-                approvedVendors.map((v) => (
-                  <tr key={v.id} className="hover:bg-[#fbf9f4] transition-colors">
-                    <td className="px-6 py-4 font-bold text-[#14261c]">
-                      <div className="flex items-center gap-2">
-                        <span>{v.name}</span>
-                        <span className="h-2 w-2 rounded-full bg-[#166534]" />
-                      </div>
-                      {v.trade_name && (
-                        <div className="text-[11px] font-normal text-[#536658] mt-0.5">{v.trade_name}</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 font-mono text-xs text-[#1e3e30] font-semibold">
-                      {v.gstin ?? "GST Exempt / Unregistered"}
-                    </td>
-                    <td className="px-6 py-4 text-xs text-[#536658]">
-                      <div className="font-bold text-[#14261c]">{v.bank_name ?? "—"}</div>
-                      <div className="font-mono text-[11px] text-[#7a8d80] mt-0.5">
-                        {v.ifsc ? `IFSC: ${v.ifsc}` : "—"}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#dcfce7] text-[#166534] border border-[#bbf7d0]">
-                        Active
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                approvedVendors.map((v) => {
+                  const isForeignVendor = v.ifsc && v.ifsc.length <= 11 && !/^[A-Z]{4}0/.test(v.ifsc);
+                  return (
+                    <tr key={v.id} className="hover:bg-[#fbf9f4] transition-colors">
+                      <td className="px-6 py-4 font-bold text-[#14261c]">
+                        <div className="flex items-center gap-2">
+                          <span>{v.name}</span>
+                          <span className="h-2 w-2 rounded-full bg-[#166534]" />
+                          {isForeignVendor && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
+                              🌍 Import / Foreign
+                            </span>
+                          )}
+                        </div>
+                        {v.trade_name && (
+                          <div className="text-[11px] font-normal text-[#536658] mt-0.5">{v.trade_name}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 font-mono text-xs text-[#1e3e30] font-semibold">
+                        {v.gstin ?? "GST Exempt / Unregistered"}
+                      </td>
+                      <td className="px-6 py-4 text-xs text-[#536658]">
+                        <div className="font-bold text-[#14261c]">{v.bank_name ?? "—"}</div>
+                        <div className="font-mono text-[11px] text-[#7a8d80] mt-0.5">
+                          {v.ifsc ? (isForeignVendor ? `SWIFT: ${v.ifsc}` : `IFSC: ${v.ifsc}`) : "—"}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#dcfce7] text-[#166534] border border-[#bbf7d0]">
+                          Active
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

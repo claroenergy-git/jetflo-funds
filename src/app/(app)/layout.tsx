@@ -48,21 +48,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 py-3">
           {/* High-Visibility Logo with Circular Badge */}
           <Link href="/" className="flex items-center gap-3.5 group">
-            <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-[#c8bd9f] bg-gradient-to-br from-[#f2ece0] to-white p-1 shadow-xs transition-all duration-300 group-hover:scale-105 group-hover:border-[#1e3e30]">
+            <div className="relative flex h-14 w-14 sm:h-15 sm:w-15 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#c8bd9f] bg-gradient-to-br from-[#f2ece0] to-white p-1 shadow-sm transition-all duration-300 group-hover:scale-105 group-hover:border-[#1e3e30]">
               <Image
                 src="/jetflo-logo.jpeg"
-                alt="JetFlo"
-                width={48}
-                height={48}
+                alt="JetFlo Logo"
+                width={64}
+                height={64}
                 className="h-full w-full object-cover rounded-full"
                 priority
               />
             </div>
             <div>
-              <div className="text-lg font-extrabold tracking-tight text-[#14261c] flex items-center gap-2">
+              <div className="text-xl font-extrabold tracking-tight text-[#14261c] flex items-center gap-2">
                 JetFlo <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#eaf3ed] text-[#1e3e30] border border-[#cce3d4]">Funds</span>
               </div>
-              <p className="text-[11px] text-[#536658] font-bold tracking-wide">Claro Energy Limited</p>
+              <p className="text-xs text-[#536658] font-bold tracking-wide">Claro Manufacturing Pvt. Ltd.</p>
             </div>
           </Link>
 
