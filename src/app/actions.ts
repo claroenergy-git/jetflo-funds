@@ -472,31 +472,24 @@ export async function onboardVendor(_prev: ActionResult | null, formData: FormDa
 
   const admin = getSupabaseAdmin();
 
-  const panVal = !isForeign ? (gstin && gstin.length >= 12 ? gstin.slice(2, 12) : panInput || null) : null;
+  // Display name formatting
+  const displayName = isForeign
+    ? tradeName ? `${name} (${tradeName} — ${country})` : `${name} (${country})`
+    : tradeName ? `${name} (${tradeName})` : name;
+
   const gstinVal = !isForeign ? (isUnregistered ? null : gstin) : (vatNo || null);
   const ifscVal = isForeign ? swiftCode : ifsc;
-  const stateVal = isForeign ? country : (state || null);
 
   const { data: inserted, error } = await admin
     .from("jetflo_vendors")
     .insert({
-      name,
-      trade_name: tradeName || null,
+      name: displayName,
       gstin: gstinVal,
-      pan: panVal,
-      contact_person: contactPerson,
-      email: email || null,
-      phone: phone || null,
-      address_line: addressLine || null,
-      city: city || null,
-      state: stateVal,
-      pincode: pincode || null,
       bank_name: bankName,
       account_no: accountNo,
       ifsc: ifscVal,
       category: "both",
       active: isActive,
-      status,
       created_by: userId,
     })
     .select("id, name")
@@ -538,15 +531,11 @@ export async function approveVendor(_prev: ActionResult | null, formData: FormDa
   const vendorId = String(formData.get("vendor_id") || "").trim();
   if (!vendorId) return { ok: false, error: "Vendor ID required." };
 
-  const admin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
+  const admin = getSupabaseAdmin();
 
   const { error } = await admin
     .from("jetflo_vendors")
-    .update({ active: true, status: "approved" })
+    .update({ active: true })
     .eq("id", vendorId);
   if (error) return { ok: false, error: error.message };
 
@@ -564,11 +553,7 @@ export async function rejectVendor(_prev: ActionResult | null, formData: FormDat
   const vendorId = String(formData.get("vendor_id") || "").trim();
   if (!vendorId) return { ok: false, error: "Vendor ID required." };
 
-  const admin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
+  const admin = getSupabaseAdmin();
 
   // If vendor has no fund requests, delete; otherwise deactivate
   const { count } = await admin
@@ -579,7 +564,7 @@ export async function rejectVendor(_prev: ActionResult | null, formData: FormDat
   if (!count || count === 0) {
     await admin.from("jetflo_vendors").delete().eq("id", vendorId);
   } else {
-    await admin.from("jetflo_vendors").update({ active: false, status: "rejected" }).eq("id", vendorId);
+    await admin.from("jetflo_vendors").update({ active: false }).eq("id", vendorId);
   }
 
   revalidatePath("/", "layout");
