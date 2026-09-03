@@ -17,6 +17,7 @@ const users = [
   { email: 'gaurav@claroenergy.in',     name: 'Gaurav',        role: 'finance',    plant: 'Claro Energy, Mumbai', phone: '+91 98200 33333' },
   { email: 'kartik@claroenergy.in',     name: 'Kartik',        role: 'leadership', plant: 'Claro Energy, Mumbai', phone: '+91 98100 44444' },
   { email: 'soumitra@claroenergy.in',   name: 'Soumitra',      role: 'leadership', plant: 'Claro Energy, Mumbai', phone: '+91 98100 55555' },
+  { email: 'yash.parashar@claroenergy.in', name: 'Yash Parashar', role: 'leadership', plant: 'Claro Energy, Mumbai', phone: '+91 98000 00000' },
 ];
 const PASSWORD = 'JetFlo@2026';
 
