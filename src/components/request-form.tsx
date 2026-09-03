@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createRequest, updateDraft, type ActionResult } from "@/app/actions";
 import { inputCls, labelCls, btnPrimary, btnSecondary, Alert } from "@/components/ui";
-import { inr } from "@/lib/format";
+import { inr, fmtMoney, currencySymbol } from "@/lib/format";
 
 interface Option {
   id: string;
   name?: string;
   sub_head?: string;
   category?: string;
+  is_foreign?: boolean;
+  country?: string;
 }
 
 interface PriorRequest {
@@ -86,6 +88,10 @@ export function RequestForm({
   const [vendorId, setVendorId] = useState<string>(String(dv("vendor_id", existing?.vendor?.id ?? existing?.vendor_id)));
   const [paymentType, setPaymentType] = useState<string>(existing?.payment_type ?? "advance");
   const [parentReqId, setParentReqId] = useState<string>(existing?.parent_request_id ?? "");
+  const [currency, setCurrency] = useState<"INR" | "USD">(
+    (existing?.currency || "INR").toUpperCase() === "USD" ? "USD" : "INR"
+  );
+  const sym = currency === "USD" ? "$" : "₹";
 
   // Auto-calculation of Line Total: Qty × Unit Rate + Tax% + Round Off
   const [qty, setQty] = useState<string>(String(existing?.qty ?? ""));
@@ -223,8 +229,13 @@ export function RequestForm({
             className={inputCls}
             value={vendorId}
             onChange={(e) => {
-              setVendorId(e.target.value);
+              const vid = e.target.value;
+              setVendorId(vid);
               setParentReqId("");
+              const picked = vendors.find((v) => v.id === vid);
+              if (picked?.is_foreign || (picked?.country && picked.country.toLowerCase() !== "india")) {
+                setCurrency("USD");
+              }
             }}
           >
             <option value="" disabled>
@@ -232,10 +243,22 @@ export function RequestForm({
             </option>
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>
-                {v.name}
+                {v.name} {v.is_foreign ? "🌐 (Foreign / Import)" : ""}
               </option>
             ))}
           </select>
+          {(() => {
+            const picked = vendors.find((v) => v.id === vendorId);
+            if (picked?.is_foreign || (picked?.country && picked.country.toLowerCase() !== "india")) {
+              return (
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-[#0369a1] bg-[#f0f9ff] px-2.5 py-1 rounded-md border border-[#bae6fd]">
+                  <span>🌐</span>
+                  <span>Foreign vendor ({picked.country || "Overseas"}) — Currency defaulted to USD ($)</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
           {vendors.length === 0 && (
             <p className="mt-1 text-xs text-[#b45309] font-medium">
               No approved vendors found. Please onboard vendor first.
@@ -355,6 +378,59 @@ export function RequestForm({
         )}
       </div>
 
+      {/* Transaction Currency Selector */}
+      <div className="rounded-xl border border-[#cbe1d3] bg-[#f0f7f2] p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#1e3e30]">
+              Transaction Currency
+            </span>
+            {currency === "USD" ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#e0f2fe] text-[#0369a1] border border-[#bae6fd]">
+                🌐 Foreign Transaction (USD)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#e0eee3] text-[#1e3e30]">
+                🇮🇳 Domestic Transaction (INR)
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-[#536658] mt-0.5">
+            {currency === "USD"
+              ? "For import / foreign transactions (SWIFT / Wire transfer) — enter amounts in US Dollars ($)."
+              : "Standard domestic transactions in Indian Rupees (₹)."}
+          </p>
+        </div>
+
+        <div className="inline-flex rounded-xl p-1 bg-white border border-[#cbe1d3] shadow-xs shrink-0">
+          <button
+            type="button"
+            onClick={() => setCurrency("INR")}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+              currency === "INR"
+                ? "bg-[#1e3e30] text-white shadow-xs"
+                : "text-[#415546] hover:text-[#14261c] hover:bg-[#f0ebd9]/50"
+            }`}
+          >
+            <span>₹</span>
+            <span>INR (₹)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrency("USD")}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+              currency === "USD"
+                ? "bg-[#0369a1] text-white shadow-xs"
+                : "text-[#415546] hover:text-[#0369a1] hover:bg-[#e0f2fe]/40"
+            }`}
+          >
+            <span>$</span>
+            <span>USD ($ Foreign)</span>
+          </button>
+        </div>
+      </div>
+      <input type="hidden" name="currency" value={currency} />
+
       {/* Amount / Line Total Calculation Section */}
       {isAdvance ? (
         /* Advance Payment Mode: Only Total Amount Requested is required */
@@ -364,14 +440,21 @@ export function RequestForm({
               <span className="h-2 w-2 rounded-full bg-[#1e3e30]" />
               Advance Amount Requested
             </span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-[#e0eee3] text-[#1e3e30]">
-              Advance Payment Mode
-            </span>
+            <div className="flex items-center gap-2">
+              {currency === "USD" && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-[#e0f2fe] text-[#0369a1] border border-[#bae6fd]">
+                  USD ($)
+                </span>
+              )}
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-[#e0eee3] text-[#1e3e30]">
+                Advance Payment Mode
+              </span>
+            </div>
           </div>
 
           <div>
             <label className={labelCls}>
-              Total Amount Requested (₹) <span className="text-red-600 font-bold">*</span>
+              Total Amount Requested ({sym}) <span className="text-red-600 font-bold">*</span>
             </label>
             <input
               name="amount_requested"
@@ -379,13 +462,15 @@ export function RequestForm({
               step="any"
               min="1"
               required
-              placeholder="e.g. 50000"
+              placeholder={currency === "USD" ? "e.g. 5000" : "e.g. 50000"}
               className={`${inputCls} font-bold text-[#14261c] bg-[#eaf3ed] border-[#cce3d4] text-lg`}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
             <p className="mt-1.5 text-xs text-[#536658]">
-              Advance payments against quotations / proforma are lump-sum; line-item quantity, tax rate, and round-off breakdowns are not required.
+              {currency === "USD"
+                ? "Advance payments for foreign transactions against quotations / proforma are lump-sum in USD ($); line-item tax and round-off breakdowns are not required."
+                : "Advance payments against quotations / proforma are lump-sum; line-item quantity, tax rate, and round-off breakdowns are not required."}
             </p>
           </div>
         </div>
@@ -422,13 +507,13 @@ export function RequestForm({
             </div>
 
             <div>
-              <label className={labelCls}>Unit Rate (₹)</label>
+              <label className={labelCls}>Unit Rate ({sym})</label>
               <input
                 name="unit_rate"
                 type="number"
                 step="any"
                 min="0"
-                placeholder="e.g. 1500.00"
+                placeholder={currency === "USD" ? "e.g. 150.00" : "e.g. 1500.00"}
                 className={inputCls}
                 value={unitRate}
                 onChange={(e) => {
@@ -439,9 +524,9 @@ export function RequestForm({
             </div>
 
             <div>
-              <label className={labelCls}>Taxable Value (₹)</label>
+              <label className={labelCls}>Taxable Value ({sym})</label>
               <div className="flex items-center h-[42px] px-3.5 rounded-lg bg-[#f0ebd9] border border-[#dcd4c0] text-sm font-semibold text-[#14261c]">
-                {taxableValue > 0 ? inr(taxableValue) : "—"}
+                {taxableValue > 0 ? fmtMoney(taxableValue, currency) : "—"}
               </div>
             </div>
           </div>
@@ -469,14 +554,14 @@ export function RequestForm({
 
             <div>
               <label className={labelCls}>
-                TAX AMOUNT (₹) <span className="text-[11px] text-[#536658] font-normal normal-case">(optional)</span>
+                TAX AMOUNT ({sym}) <span className="text-[11px] text-[#536658] font-normal normal-case">(optional)</span>
               </label>
               <input
                 name="tax_amount"
                 type="number"
                 step="any"
                 min="0"
-                placeholder="Auto / ₹"
+                placeholder={`Auto / ${sym}`}
                 className={inputCls}
                 value={taxAmount}
                 onChange={(e) => {
@@ -516,11 +601,11 @@ export function RequestForm({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <label className={labelCls}>
-                  Total Amount Requested (₹) <span className="text-red-600 font-bold">*</span>
+                  Total Amount Requested ({sym}) <span className="text-red-600 font-bold">*</span>
                 </label>
                 <p className="text-[11px] text-[#536658]">
                   {taxableValue > 0
-                    ? `Base: ${inr(taxableValue)} + Tax: ${inr(parseFloat(taxAmount) || 0)} ${roundOff ? `+ Round-off: ${roundOff}` : ""}`
+                    ? `Base: ${fmtMoney(taxableValue, currency)} + Tax: ${fmtMoney(parseFloat(taxAmount) || 0, currency)} ${roundOff ? `+ Round-off: ${roundOff}` : ""}`
                     : "Auto-calculated total payable amount"}
                 </p>
               </div>
@@ -531,7 +616,7 @@ export function RequestForm({
                   step="any"
                   min="1"
                   required
-                  placeholder="Total ₹"
+                  placeholder={`Total ${sym}`}
                   className={`${inputCls} font-bold text-[#14261c] bg-[#eaf3ed] border-[#cce3d4] text-base`}
                   value={amount}
                   onChange={(e) => {

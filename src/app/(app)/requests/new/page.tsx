@@ -11,11 +11,16 @@ export default async function NewRequestPage() {
     return <Alert kind="error">Only the ground team can raise fund requests.</Alert>;
   }
 
-  const [{ data: vendors }, { data: heads }, { data: priorRequests }] = await Promise.all([
-    supabase.from("jetflo_vendors").select("id, name").eq("active", true).order("name"),
+  let vendorsRes: any = await supabase.from("jetflo_vendors").select("id, name, is_foreign, country").eq("active", true).order("name");
+  if (vendorsRes.error) {
+    vendorsRes = await supabase.from("jetflo_vendors").select("id, name").eq("active", true).order("name");
+  }
+
+  const [{ data: heads }, { data: priorRequests }] = await Promise.all([
     supabase.from("jetflo_budget_heads").select("id, category, sub_head").eq("active", true).order("sub_head"),
     supabase.from("jetflo_fund_requests").select("id, request_no, vendor_id, amount_approved, amount_requested, item_description, status").not("status", "in", "(draft,rejected)").order("created_at", { ascending: false }),
   ]);
+  const vendors = vendorsRes.data ?? [];
 
   return (
     <div className="max-w-2xl">

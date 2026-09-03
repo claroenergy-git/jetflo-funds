@@ -149,6 +149,8 @@ export async function createRequest(_prev: ActionResult | null, formData: FormDa
     const taxPercent = (!isAdvance && formData.get("tax_percent")) ? Number(formData.get("tax_percent")) : null;
     const taxAmount = (!isAdvance && formData.get("tax_amount")) ? Number(formData.get("tax_amount")) : null;
     const roundOff = (!isAdvance && formData.get("round_off") !== null && formData.get("round_off") !== "") ? Number(formData.get("round_off")) : null;
+    const currency = String(formData.get("currency") || "INR").toUpperCase() === "USD" ? "USD" : "INR";
+    const sym = currency === "USD" ? "$" : "₹";
     let amount = Number(formData.get("amount_requested"));
 
     // Auto-calculate line total if qty and unit rate are provided and amount not manually specified
@@ -157,7 +159,7 @@ export async function createRequest(_prev: ActionResult | null, formData: FormDa
       const calcTax = taxPercent ? Number((taxable * (taxPercent / 100)).toFixed(2)) : (taxAmount ?? 0);
       amount = Number((taxable + calcTax + (roundOff ?? 0)).toFixed(2));
     }
-    if (!amount || amount <= 0) return { ok: false, error: "Please enter a valid requested amount (₹)." };
+    if (!amount || amount <= 0) return { ok: false, error: `Please enter a valid requested amount (${sym}).` };
 
     const docFile = (formData.get("doc_file") || formData.get("quotation")) as File | null;
     const docKind = String(formData.get("doc_kind") || "quotation");
@@ -196,6 +198,7 @@ export async function createRequest(_prev: ActionResult | null, formData: FormDa
       product_sku: String(formData.get("product_sku") || "") || null,
       qty,
       unit_rate: rate,
+      currency,
       amount_requested: amount,
       urgency: "normal",
       need_by_date: null,
@@ -681,6 +684,8 @@ export async function updateDraft(_prev: ActionResult | null, formData: FormData
     const taxPercent = (!isAdvance && formData.get("tax_percent")) ? Number(formData.get("tax_percent")) : null;
     const taxAmount = (!isAdvance && formData.get("tax_amount")) ? Number(formData.get("tax_amount")) : null;
     const roundOff = (!isAdvance && formData.get("round_off") !== null && formData.get("round_off") !== "") ? Number(formData.get("round_off")) : null;
+    const currency = String(formData.get("currency") || "INR").toUpperCase() === "USD" ? "USD" : "INR";
+    const sym = currency === "USD" ? "$" : "₹";
     let amount = Number(formData.get("amount_requested"));
 
     if (!isAdvance && (!amount || isNaN(amount)) && qty && rate) {
@@ -688,7 +693,7 @@ export async function updateDraft(_prev: ActionResult | null, formData: FormData
       const calcTax = taxPercent ? Number((taxable * (taxPercent / 100)).toFixed(2)) : (taxAmount ?? 0);
       amount = Number((taxable + calcTax + (roundOff ?? 0)).toFixed(2));
     }
-    if (!amount || amount <= 0) return { ok: false, error: "Enter a valid amount" };
+    if (!amount || amount <= 0) return { ok: false, error: `Enter a valid amount (${sym})` };
 
     const notes = String(formData.get("justification") || formData.get("notes") || "").trim();
     const parentRequestId = String(formData.get("parent_request_id") || "").trim() || null;
@@ -702,6 +707,7 @@ export async function updateDraft(_prev: ActionResult | null, formData: FormData
       product_sku: String(formData.get("product_sku") || "") || null,
       qty,
       unit_rate: rate,
+      currency,
       amount_requested: amount,
       urgency: "normal",
       need_by_date: null,
@@ -820,5 +826,98 @@ export async function changeUserPassword(_prev: ActionResult | null, formData: F
   }
 
   return { ok: true };
+}
+
+export async function updateTicketCurrency(
+  _prev: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const { supabase, userId } = await ctx();
+  const { data: userProfile } = await supabase.from("jetflo_users").select("role, name").eq("id", userId).single();
+  if (!userProfile) return { ok: false, error: "Please log in to amend ticket currency." };
+
+  const id = String(formData.get("id") || "").trim();
+  if (!id) return { ok: false, error: "Request ID is missing." };
+
+  const targetCurrency = String(formData.get("currency") || "INR").toUpperCase() === "USD" ? "USD" : "INR";
+  const newAmountRaw = formData.get("amount_requested");
+  const remarks = String(formData.get("remarks") || "").trim();
+
+  if (!remarks) {
+    return { ok: false, error: "Please provide a formal justification for changing the currency." };
+  }
+
+  const admin = getSupabaseAdmin();
+
+  // Fetch current ticket
+  const { data: currentReq, error: fetchErr } = await admin
+    .from("jetflo_fund_requests")
+    .select("id, request_no, currency, amount_requested, amount_approved, status, requester_id")
+    .eq("id", id)
+    .single();
+
+  if (fetchErr || !currentReq) {
+    return { ok: false, error: "Ticket not found." };
+  }
+
+  // Permission check: Owner, Finance, or Leadership can amend
+  const isOwner = currentReq.requester_id === userId;
+  const isFinance = userProfile.role === "finance";
+  const isLeadership = userProfile.role === "leadership";
+  if (!isOwner && !isFinance && !isLeadership) {
+    return { ok: false, error: "You are not authorized to amend this request's currency." };
+  }
+
+  const prevCurrency = (currentReq.currency || "INR").toUpperCase();
+  const prevAmount = Number(currentReq.amount_requested);
+  let newAmount = prevAmount;
+
+  if (newAmountRaw !== null && newAmountRaw !== "") {
+    const parsed = Number(newAmountRaw);
+    if (!isNaN(parsed) && parsed > 0) {
+      newAmount = parsed;
+    }
+  }
+
+  const prevSym = prevCurrency === "USD" ? "$" : "₹";
+  const newSym = targetCurrency === "USD" ? "$" : "₹";
+
+  const updatePayload: Record<string, unknown> = {
+    currency: targetCurrency,
+    amount_requested: newAmount,
+    currency_amended: true,
+    currency_amended_at: new Date().toISOString(),
+    currency_amended_by: userId,
+    previous_currency: prevCurrency,
+    previous_amount: prevAmount,
+    currency_amendment_reason: remarks,
+  };
+
+  // If already approved, sync amount_approved if it equalled the old requested amount
+  if (currentReq.amount_approved && Number(currentReq.amount_approved) === prevAmount) {
+    updatePayload.amount_approved = newAmount;
+  }
+
+  const { error: upErr } = await safeDbUpdate(admin, "jetflo_fund_requests", updatePayload, id);
+  if (upErr) {
+    return { ok: false, error: upErr.message || "Failed to update ticket currency." };
+  }
+
+  // Log formal audit memo
+  const auditMemo = `Formal Currency Amendment: Currency updated from ${prevCurrency} (${prevSym}${prevAmount.toLocaleString()}) to ${targetCurrency} (${newSym}${newAmount.toLocaleString()}). Justification: ${remarks}`;
+
+  await admin.from("jetflo_audit_log").insert({
+    request_id: id,
+    actor_id: userId,
+    action: "currency_amended",
+    remarks: auditMemo,
+  });
+
+  revalidatePath(`/requests/${id}`);
+  revalidatePath("/requests");
+  revalidatePath("/dashboard");
+  revalidatePath("/finance/queue");
+
+  return { ok: true, id };
 }
 

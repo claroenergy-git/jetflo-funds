@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import { getSupabase } from "@/lib/supabase/server";
-import { requireProfile, REQUEST_COLS, REQUEST_COLS_WITH_TAX } from "@/lib/data";
+import { requireProfile, REQUEST_COLS, REQUEST_COLS_WITH_TAX, REQUEST_COLS_LEGACY } from "@/lib/data";
 import { Card, StatusChip, Alert } from "@/components/ui";
-import { inr, fmtDate, fmtDateTime } from "@/lib/format";
+import { inr, fmtMoney, fmtDate, fmtDateTime } from "@/lib/format";
 import { CATEGORY_LABEL, STATUS_LABEL, type Status } from "@/lib/types";
 import { DecisionPanel, PaymentForm, CloseForm } from "@/components/action-panels";
 import { RequestForm } from "@/components/request-form";
+import { ChangeCurrencyModal } from "@/components/change-currency-modal";
 
 const ACTION_LABEL: Record<string, string> = {
   created: "Request created",
@@ -17,6 +18,7 @@ const ACTION_LABEL: Record<string, string> = {
   rejected: "Rejected",
   paid: "Payment recorded",
   closed: "Closed with invoice",
+  currency_amended: "Formal currency amendment applied",
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -29,7 +31,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const resWithTax = await supabase.from("jetflo_fund_requests").select(REQUEST_COLS_WITH_TAX).eq("id", id).single();
   let r: any = resWithTax.data;
   if (resWithTax.error) {
-    const fallbackRes = await supabase.from("jetflo_fund_requests").select(REQUEST_COLS).eq("id", id).single();
+    const fallbackRes = await supabase.from("jetflo_fund_requests").select(REQUEST_COLS_LEGACY).eq("id", id).single();
     r = fallbackRes.data;
   }
   if (!r) notFound();
@@ -60,12 +62,15 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   let heads: { id: string; category: string; sub_head: string }[] = [];
   let priorRequests: any[] = [];
   if (editable) {
-    const [v, h, pr] = await Promise.all([
-      supabase.from("jetflo_vendors").select("id, name").eq("active", true).order("name"),
+    let vRes: any = await supabase.from("jetflo_vendors").select("id, name, is_foreign, country").eq("active", true).order("name");
+    if (vRes.error) {
+      vRes = await supabase.from("jetflo_vendors").select("id, name").eq("active", true).order("name");
+    }
+    const [h, pr] = await Promise.all([
       supabase.from("jetflo_budget_heads").select("id, category, sub_head").eq("active", true).order("sub_head"),
       supabase.from("jetflo_fund_requests").select("id, request_no, vendor_id, amount_approved, amount_requested, item_description, status").not("status", "in", "(draft,rejected)").order("created_at", { ascending: false }),
     ]);
-    vendors = v.data ?? [];
+    vendors = vRes.data ?? [];
     heads = h.data ?? [];
     priorRequests = pr.data ?? [];
   }
@@ -89,28 +94,93 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
           </span>
         </div>
 
+        {/* Formal Currency Amendment Notice Banner */}
+        {r.currency_amended && (
+          <div className="rounded-2xl border-2 border-[#bae6fd] bg-gradient-to-r from-[#f0f9ff] via-[#e0f2fe] to-[#f0f9ff] p-4.5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#bae6fd] pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#0369a1] text-white text-xs font-bold shadow-xs">
+                  💱
+                </span>
+                <div>
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-[#0369a1]">
+                    Formal Currency Amendment Notice
+                  </span>
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-[#0369a1] text-white">
+                    Official Record
+                  </span>
+                </div>
+              </div>
+              <span className="text-[11px] font-semibold text-[#0369a1]">
+                Amended: {fmtDateTime(r.currency_amended_at)}
+              </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="rounded-xl bg-white/90 p-2.5 border border-[#bae6fd]/60 shadow-2xs">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#536658]">Original Recorded Value</div>
+                <div className="font-bold text-[#14261c] mt-0.5 line-through decoration-red-500">
+                  {fmtMoney(r.previous_amount || r.amount_requested, r.previous_currency || "INR")} ({r.previous_currency || "INR"})
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-white/90 p-2.5 border border-[#bae6fd]/60 shadow-2xs">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#0369a1]">Amended Value</div>
+                <div className="font-black text-[#0369a1] mt-0.5">
+                  {fmtMoney(r.amount_requested, r.currency)} ({r.currency || "USD"})
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-white/90 p-2.5 border border-[#bae6fd]/60 shadow-2xs">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#536658]">Authorized By</div>
+                <div className="font-bold text-[#14261c] mt-0.5">
+                  {userName(r.currency_amended_by)}
+                </div>
+              </div>
+            </div>
+
+            {r.currency_amendment_reason && (
+              <div className="mt-2.5 text-xs text-[#0c4a6e] bg-white/95 p-2.5 rounded-xl border border-[#bae6fd]/60 font-medium">
+                <b className="text-[#0369a1]">Operational Justification: </b>
+                {r.currency_amendment_reason}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Primary Information Bento Card */}
         <Card variant="default">
-          <div className="mb-5 pb-4 border-b border-[#e5decb]">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#415546]">Item Description</span>
-            <div className="text-base font-bold text-[#14261c] mt-1">{r.item_description}</div>
+          <div className="mb-5 pb-4 border-b border-[#e5decb] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#415546]">Item Description</span>
+              <div className="text-base font-bold text-[#14261c] mt-0.5">{r.item_description}</div>
+            </div>
+            <div className="shrink-0">
+              <ChangeCurrencyModal
+                requestId={r.id}
+                requestNo={r.request_no}
+                currentCurrency={r.currency || "INR"}
+                currentAmount={Number(r.amount_requested)}
+              />
+            </div>
           </div>
 
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
             {[
               ["Category", CATEGORY_LABEL[r.category]],
               ["Sub-head", r.budget_head?.sub_head],
-              ["Vendor", r.vendor?.name],
+              ["Vendor", r.vendor?.name + (r.vendor?.is_foreign ? " 🌐 (Foreign)" : "")],
               ...(r.product_sku ? [["Product / SKU", r.product_sku]] : []),
-              ...(r.qty ? [["Qty × Rate", `${r.qty} × ${inr(r.unit_rate)}`]] : []),
+              ["Transaction Currency", (r.currency || "INR").toUpperCase() === "USD" ? "USD ($) — Foreign Transaction" : "INR (₹) — Domestic (India)"],
+              ...(r.qty ? [["Qty × Rate", `${r.qty} × ${fmtMoney(r.unit_rate, r.currency)}`]] : []),
               ...(r.tax_percent ? [["Tax Rate", `${r.tax_percent}%`]] : []),
-              ...(r.tax_amount ? [["Tax Amount", inr(r.tax_amount)]] : []),
-              ...(r.round_off ? [["Round Off", `${Number(r.round_off) > 0 ? "+" : ""}${inr(r.round_off)}`]] : []),
-              ["Requested Amount", inr(r.amount_requested)],
-              ["Approved Amount", inr(r.amount_approved)],
-              ["Disbursed to Date", inr(r.amount_paid)],
+              ...(r.tax_amount ? [["Tax Amount", fmtMoney(r.tax_amount, r.currency)]] : []),
+              ...(r.round_off ? [["Round Off", `${Number(r.round_off) > 0 ? "+" : ""}${fmtMoney(r.round_off, r.currency)}`]] : []),
+              ["Requested Amount", fmtMoney(r.amount_requested, r.currency)],
+              ["Approved Amount", fmtMoney(r.amount_approved, r.currency)],
+              ["Disbursed to Date", fmtMoney(r.amount_paid, r.currency)],
               ...(Number(r.amount_approved) > 0 && balance > 0 && ["approved", "partially_approved", "paid"].includes(status)
-                ? [["Outstanding Balance", inr(balance)]]
+                ? [["Outstanding Balance", fmtMoney(balance, r.currency)]]
                 : []),
               ["Payment Type", r.payment_type === "advance" ? "Advance (against Quotation/Proforma)" : r.payment_type === "balance" ? "Balance Payment" : "Against Invoice"],
               ["Requested By", r.requester?.name],
@@ -191,7 +261,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
                   {payments!.map((p) => (
                     <tr key={p.id} className="hover:bg-[#fbf9f4]">
                       <td className="px-6 py-3 text-xs text-[#536658] font-semibold">{fmtDate(p.paid_on)}</td>
-                      <td className="px-6 py-3 text-right font-bold tabular-nums text-[#166534]">{inr(p.amount_paid)}</td>
+                      <td className="px-6 py-3 text-right font-bold tabular-nums text-[#166534]">{fmtMoney(p.amount_paid, r.currency)}</td>
                       <td className="px-6 py-3 uppercase text-xs font-bold text-[#14261c]">{p.mode}</td>
                       <td className="px-6 py-3 font-mono text-xs text-[#536658] font-medium">{p.utr_ref ?? "—"}</td>
                     </tr>
@@ -229,6 +299,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               amountRequested={Number(r.amount_requested)}
               amountApproved={r.amount_approved ? Number(r.amount_approved) : null}
               status={status}
+              currency={r.currency || "INR"}
             />
           </Card>
         )}
@@ -243,7 +314,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
                   High-Priority Leadership Sign-Off (Gaurav)
                 </h2>
                 <p className="text-xs text-[#92400e] mt-0.5 font-medium">
-                  First approval by Accounts completed ({inr(r.amount_approved)}). Leadership authorization required.
+                  First approval by Accounts completed ({fmtMoney(r.amount_approved, r.currency)}). Leadership authorization required.
                 </p>
               </div>
               <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
@@ -255,6 +326,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               amountRequested={Number(r.amount_requested)}
               amountApproved={r.amount_approved ? Number(r.amount_approved) : null}
               status={status}
+              currency={r.currency || "INR"}
             />
           </Card>
         )}
@@ -266,7 +338,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               <span className="h-2 w-2 rounded-full bg-[#166534]" />
               Record Bank Fund Transfer
             </h2>
-            <PaymentForm id={r.id} balance={balance} />
+            <PaymentForm id={r.id} balance={balance} currency={r.currency || "INR"} />
           </Card>
         )}
 

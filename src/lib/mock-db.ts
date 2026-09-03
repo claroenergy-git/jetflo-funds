@@ -88,6 +88,13 @@ export interface MockFundRequest {
   tax_amount?: number | null;
   round_off?: number | null;
   amount_requested: number;
+  currency?: "INR" | "USD";
+  currency_amended?: boolean;
+  currency_amended_at?: string | null;
+  currency_amended_by?: string | null;
+  previous_currency?: string | null;
+  previous_amount?: number | null;
+  currency_amendment_reason?: string | null;
   amount_approved: number | null;
   amount_paid: number;
   urgency: "normal" | "urgent" | "critical";

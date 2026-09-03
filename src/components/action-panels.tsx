@@ -9,21 +9,24 @@ import {
   type ActionResult,
 } from "@/app/actions";
 import { inputCls, labelCls, btnPrimary, btnSecondary, Alert } from "@/components/ui";
-import { inr } from "@/lib/format";
+import { inr, fmtMoney, currencySymbol } from "@/lib/format";
 
 export function DecisionPanel({
   id,
   amountRequested,
   status,
   amountApproved,
+  currency = "INR",
 }: {
   id: string;
   amountRequested: number;
   status: string;
   amountApproved: number | null;
+  currency?: string;
 }) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(financeDecide, null);
   const second = status === "awaiting_second_approval";
+  const sym = currencySymbol(currency);
 
   return (
     <form action={action} className="space-y-3.5">
@@ -32,11 +35,11 @@ export function DecisionPanel({
       {state?.warning && <Alert kind="warning">{state.warning}</Alert>}
       {second ? (
         <Alert kind="warning">
-          First approval completed for {inr(amountApproved)}. You are acting as the <b>second approver</b>.
+          First approval completed for {fmtMoney(amountApproved, currency)}. You are acting as the <b>second approver</b>.
         </Alert>
       ) : (
         <div>
-          <label className={labelCls}>Approved amount (₹) — lower it for a partial approval</label>
+          <label className={labelCls}>Approved amount ({sym}) — lower it for a partial approval</label>
           <input
             name="amount_approved"
             type="number"
@@ -81,8 +84,17 @@ export function DecisionPanel({
   );
 }
 
-export function PaymentForm({ id, balance }: { id: string; balance: number }) {
+export function PaymentForm({
+  id,
+  balance,
+  currency = "INR",
+}: {
+  id: string;
+  balance: number;
+  currency?: string;
+}) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(recordPayment, null);
+  const sym = currencySymbol(currency);
   return (
     <form action={action} className="space-y-3.5">
       <input type="hidden" name="id" value={id} />
@@ -91,7 +103,7 @@ export function PaymentForm({ id, balance }: { id: string; balance: number }) {
       {state?.ok && <Alert kind="success">Payment recorded successfully.</Alert>}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls}>Amount (₹) — balance {inr(balance)}</label>
+          <label className={labelCls}>Amount ({sym}) — balance {fmtMoney(balance, currency)}</label>
           <input name="amount_paid" type="number" step="any" min="1" max={balance} defaultValue={balance} required className={inputCls} />
         </div>
         <div>
@@ -100,10 +112,11 @@ export function PaymentForm({ id, balance }: { id: string; balance: number }) {
         </div>
         <div>
           <label className={labelCls}>Mode</label>
-          <select name="mode" className={inputCls}>
+          <select name="mode" className={inputCls} defaultValue={currency === "USD" ? "wire_swift" : "neft"}>
             <option value="neft">NEFT</option>
             <option value="rtgs">RTGS</option>
             <option value="imps">IMPS</option>
+            <option value="wire_swift">Wire Transfer / SWIFT (Foreign)</option>
             <option value="upi">UPI</option>
             <option value="cheque">Cheque</option>
             <option value="cash">Cash</option>

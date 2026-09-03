@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getSupabase } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/data";
 import { PageTitle, Card } from "@/components/ui";
-import { inr, fmtDate, daysSince, monthKey, agingBucket } from "@/lib/format";
+import { inr, fmtMoney, fmtDate, daysSince, monthKey, agingBucket } from "@/lib/format";
 import { MonthlyBars, HBarList, Kpi, C_CAPEX, C_RM } from "@/components/dashboard-charts";
 import { CsvButton } from "@/components/csv-button";
 
@@ -17,8 +17,20 @@ export default async function DashboardPage({
   const profile = await requireProfile();
   const supabase = await getSupabase();
 
-  const [{ data: requests }, { data: payments }, { data: heads }, { data: settings }] = await Promise.all([
-    supabase
+  let reqRes = await supabase
+    .from("jetflo_fund_requests")
+    .select(
+      `id, request_no, category, item_description, product_sku,
+       currency, currency_amended, currency_amended_at, previous_currency, previous_amount, currency_amendment_reason,
+       amount_requested, amount_approved,
+       amount_paid, status, urgency, submitted_at, decided_at, first_paid_at, closed_at, created_at,
+       budget_head:jetflo_budget_heads ( sub_head, sanctioned_amount ),
+       vendor:jetflo_vendors ( name ),
+       requester:jetflo_users!jetflo_fund_requests_requester_id_fkey ( name )`
+    );
+
+  if (reqRes.error) {
+    reqRes = await supabase
       .from("jetflo_fund_requests")
       .select(
         `id, request_no, category, item_description, product_sku, amount_requested, amount_approved,
@@ -26,7 +38,10 @@ export default async function DashboardPage({
          budget_head:jetflo_budget_heads ( sub_head, sanctioned_amount ),
          vendor:jetflo_vendors ( name ),
          requester:jetflo_users!jetflo_fund_requests_requester_id_fkey ( name )`
-      ),
+      );
+  }
+
+  const [{ data: payments }, { data: heads }, { data: settings }] = await Promise.all([
     supabase
       .from("jetflo_payments")
       .select(
@@ -39,8 +54,9 @@ export default async function DashboardPage({
     supabase.from("jetflo_settings").select("key, value"),
   ]);
 
-  const reqs: any[] = requests ?? [];
+  const reqs: any[] = reqRes.data ?? [];
   const pays: any[] = payments ?? [];
+  const amendedReqs = reqs.filter((r) => r.currency_amended);
 
   // ---- headline KPIs ----
   const paidCapex = pays.filter((p) => p.request?.category === "capex").reduce((s, p) => s + +p.amount_paid, 0);
@@ -210,6 +226,65 @@ export default async function DashboardPage({
           </a>
         </form>
       </div>
+
+      {/* Accounts Oversight Notification: Formal Currency Amendments Logged */}
+      {amendedReqs.length > 0 && (
+        <div className="rounded-2xl border-2 border-[#bae6fd] bg-gradient-to-r from-[#f0f9ff] via-[#e0f2fe] to-[#f0f9ff] p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#bae6fd] pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#0369a1] text-white text-xs font-bold shadow-xs">
+                🔔
+              </span>
+              <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#0369a1]">
+                Accounts Oversight Alert: Formal Currency Amendments Logged ({amendedReqs.length})
+              </h2>
+            </div>
+            <span className="text-[11px] font-semibold text-[#0369a1]">
+              Claro Accounts Oversight Notice
+            </span>
+          </div>
+
+          <div className="mt-3 divide-y divide-[#bae6fd]/50">
+            {amendedReqs.slice(0, 5).map((r: any) => (
+              <div key={r.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <Link
+                    href={`/requests/${r.id}`}
+                    className="font-mono font-bold text-[#0369a1] hover:underline"
+                  >
+                    {r.request_no}
+                  </Link>
+                  <span className="text-[#14261c] font-semibold">{r.vendor?.name}</span>
+                  <span className="text-[#7a8d80]">·</span>
+                  <span className="text-[#536658] font-medium">{r.item_description}</span>
+                  {r.currency_amendment_reason && (
+                    <span className="text-[11px] text-[#0369a1] bg-white/70 px-2 py-0.5 rounded border border-[#bae6fd]/60 font-medium">
+                      Note: {r.currency_amendment_reason}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right">
+                    <span className="line-through text-[#7a8d80] text-[11px] mr-1.5">
+                      {fmtMoney(r.previous_amount || r.amount_requested, r.previous_currency || "INR")}
+                    </span>
+                    <span className="font-extrabold text-[#0369a1]">
+                      ➔ {fmtMoney(r.amount_requested, r.currency)}
+                    </span>
+                  </div>
+                  <Link
+                    href={`/requests/${r.id}`}
+                    className="px-2.5 py-1 rounded-lg bg-[#0369a1] text-white text-[11px] font-bold hover:bg-[#0284c7] transition shrink-0 shadow-2xs"
+                  >
+                    Review Ticket ➔
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Row 1: Actionable Headline KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
