@@ -42,16 +42,36 @@ export function RequestForm({
   const action = existing ? updateDraft : createRequest;
   const [saved, setSaved] = useState<Record<string, string>>({});
   const [attempt, setAttempt] = useState(0);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   const wrapped = async (prev: ActionResult | null, fd: FormData) => {
+    const file = fd.get("doc_file") as File | null;
+    if (file && file.size > 4.5 * 1024 * 1024) {
+      return {
+        ok: false,
+        error: `Selected document (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 4.5 MB server upload limit. Please compress or optimize the PDF/image before uploading.`,
+      };
+    }
+
     const entries: Record<string, string> = {};
     fd.forEach((v, k) => {
       if (typeof v === "string") entries[k] = v;
     });
     setSaved(entries);
-    const res = await action(prev, fd);
-    setAttempt((a) => a + 1);
-    return res;
+
+    try {
+      const res = await action(prev, fd);
+      setAttempt((a) => a + 1);
+      return res;
+    } catch (err: any) {
+      console.error("Submission error:", err);
+      return {
+        ok: false,
+        error:
+          err?.message ||
+          "A network or server error occurred while saving the request. If you uploaded a large document, please ensure it is under 4 MB.",
+      };
+    }
   };
 
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(wrapped, null);
@@ -551,9 +571,24 @@ export function RequestForm({
           type="file"
           accept=".pdf,.png,.jpg,.jpeg,.webp"
           className={`${inputCls} file:mr-3 file:rounded-lg file:border-0 file:bg-[#1e3e30] file:text-white file:px-3 file:py-1.5 file:text-xs file:font-bold hover:file:bg-[#142d21] cursor-pointer`}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file && file.size > 4.5 * 1024 * 1024) {
+              setFileError(
+                `Selected file is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Vercel limits file uploads to 4.5 MB. Please upload a compressed PDF or image.`
+              );
+            } else {
+              setFileError(null);
+            }
+          }}
         />
+        {fileError && (
+          <p className="text-xs font-bold text-red-600 bg-red-50 p-2 rounded-lg border border-red-200">
+            ⚠️ {fileError}
+          </p>
+        )}
         <p className="text-[11px] text-[#536658]">
-          Attach Quotation, Proforma, Tax Invoice, or PO. Free-text justification has been replaced by verified document upload.
+          Attach Quotation, Proforma, Tax Invoice, or PO (max 4.5 MB). Free-text justification has been replaced by verified document upload.
         </p>
       </div>
 
