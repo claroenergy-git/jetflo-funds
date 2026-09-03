@@ -87,13 +87,19 @@ export async function createRequest(_prev: ActionResult | null, formData: FormDa
   if (!vendorId) return { ok: false, error: "Vendor selection is mandatory." };
   if (!itemDescription) return { ok: false, error: "Item description is mandatory." };
 
-  const qty = formData.get("qty") ? Number(formData.get("qty")) : null;
-  const rate = formData.get("unit_rate") ? Number(formData.get("unit_rate")) : null;
+  const isAdvance = paymentType === "advance";
+  const qty = (!isAdvance && formData.get("qty")) ? Number(formData.get("qty")) : null;
+  const rate = (!isAdvance && formData.get("unit_rate")) ? Number(formData.get("unit_rate")) : null;
+  const taxPercent = (!isAdvance && formData.get("tax_percent")) ? Number(formData.get("tax_percent")) : null;
+  const taxAmount = (!isAdvance && formData.get("tax_amount")) ? Number(formData.get("tax_amount")) : null;
+  const roundOff = (!isAdvance && formData.get("round_off") !== null && formData.get("round_off") !== "") ? Number(formData.get("round_off")) : null;
   let amount = Number(formData.get("amount_requested"));
 
   // Auto-calculate line total if qty and unit rate are provided and amount not manually specified
-  if ((!amount || isNaN(amount)) && qty && rate) {
-    amount = Number((qty * rate).toFixed(2));
+  if (!isAdvance && (!amount || isNaN(amount)) && qty && rate) {
+    const taxable = qty * rate;
+    const calcTax = taxPercent ? Number((taxable * (taxPercent / 100)).toFixed(2)) : (taxAmount ?? 0);
+    amount = Number((taxable + calcTax + (roundOff ?? 0)).toFixed(2));
   }
   if (!amount || amount <= 0) return { ok: false, error: "Please enter a valid requested amount (₹)." };
 
@@ -134,6 +140,9 @@ export async function createRequest(_prev: ActionResult | null, formData: FormDa
     product_sku: String(formData.get("product_sku") || "") || null,
     qty,
     unit_rate: rate,
+    tax_percent: taxPercent,
+    tax_amount: taxAmount,
+    round_off: roundOff,
     amount_requested: amount,
     urgency: "normal",
     need_by_date: null,
@@ -598,12 +607,18 @@ export async function updateDraft(_prev: ActionResult | null, formData: FormData
   const itemDescription = String(formData.get("item_description") || "").trim();
   const paymentType = String(formData.get("payment_type") || "advance");
 
-  const qty = formData.get("qty") ? Number(formData.get("qty")) : null;
-  const rate = formData.get("unit_rate") ? Number(formData.get("unit_rate")) : null;
+  const isAdvance = paymentType === "advance";
+  const qty = (!isAdvance && formData.get("qty")) ? Number(formData.get("qty")) : null;
+  const rate = (!isAdvance && formData.get("unit_rate")) ? Number(formData.get("unit_rate")) : null;
+  const taxPercent = (!isAdvance && formData.get("tax_percent")) ? Number(formData.get("tax_percent")) : null;
+  const taxAmount = (!isAdvance && formData.get("tax_amount")) ? Number(formData.get("tax_amount")) : null;
+  const roundOff = (!isAdvance && formData.get("round_off") !== null && formData.get("round_off") !== "") ? Number(formData.get("round_off")) : null;
   let amount = Number(formData.get("amount_requested"));
 
-  if ((!amount || isNaN(amount)) && qty && rate) {
-    amount = Number((qty * rate).toFixed(2));
+  if (!isAdvance && (!amount || isNaN(amount)) && qty && rate) {
+    const taxable = qty * rate;
+    const calcTax = taxPercent ? Number((taxable * (taxPercent / 100)).toFixed(2)) : (taxAmount ?? 0);
+    amount = Number((taxable + calcTax + (roundOff ?? 0)).toFixed(2));
   }
   if (!amount || amount <= 0) return { ok: false, error: "Enter a valid amount" };
 
@@ -619,6 +634,9 @@ export async function updateDraft(_prev: ActionResult | null, formData: FormData
       product_sku: String(formData.get("product_sku") || "") || null,
       qty,
       unit_rate: rate,
+      tax_percent: taxPercent,
+      tax_amount: taxAmount,
+      round_off: roundOff,
       amount_requested: amount,
       urgency: "normal",
       need_by_date: null,

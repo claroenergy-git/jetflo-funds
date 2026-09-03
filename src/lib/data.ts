@@ -19,6 +19,7 @@ export async function requireProfile(): Promise<Profile> {
 
 export const REQUEST_COLS = `
   id, request_no, category, item_description, product_sku, qty, unit_rate,
+  tax_percent, tax_amount, round_off,
   amount_requested, amount_approved, amount_paid, urgency, need_by_date,
   payment_type, justification, status, duplicate_warning, goods_received, approval_remarks, rejection_reason,
   submitted_at, decided_at, first_paid_at, closed_at, created_at,

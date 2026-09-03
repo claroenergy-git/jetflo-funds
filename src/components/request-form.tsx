@@ -67,19 +67,55 @@ export function RequestForm({
   const [paymentType, setPaymentType] = useState<string>(existing?.payment_type ?? "advance");
   const [parentReqId, setParentReqId] = useState<string>(existing?.parent_request_id ?? "");
 
-  // Auto-calculation of Line Total from Qty × Unit Rate
+  // Auto-calculation of Line Total: Qty × Unit Rate + Tax% + Round Off
   const [qty, setQty] = useState<string>(String(existing?.qty ?? ""));
   const [unitRate, setUnitRate] = useState<string>(String(existing?.unit_rate ?? ""));
+  const [taxPercent, setTaxPercent] = useState<string>(
+    existing?.tax_percent !== undefined && existing?.tax_percent !== null ? String(existing.tax_percent) : ""
+  );
+  const [taxAmount, setTaxAmount] = useState<string>(
+    existing?.tax_amount !== undefined && existing?.tax_amount !== null ? String(existing.tax_amount) : ""
+  );
+  const [roundOff, setRoundOff] = useState<string>(
+    existing?.round_off !== undefined && existing?.round_off !== null ? String(existing.round_off) : ""
+  );
   const [amount, setAmount] = useState<string>(String(existing?.amount_requested ?? ""));
   const [isManualAmount, setIsManualAmount] = useState<boolean>(false);
 
+  const isAdvance = paymentType === "advance";
+  const parsedQty = parseFloat(qty);
+  const parsedRate = parseFloat(unitRate);
+  const taxableValue =
+    !isNaN(parsedQty) && !isNaN(parsedRate) && parsedQty > 0 && parsedRate > 0
+      ? Number((parsedQty * parsedRate).toFixed(2))
+      : 0;
+
   useEffect(() => {
-    const q = parseFloat(qty);
-    const r = parseFloat(unitRate);
-    if (!isNaN(q) && !isNaN(r) && q > 0 && r > 0 && !isManualAmount) {
-      setAmount((q * r).toFixed(2));
+    if (isAdvance || isManualAmount) return;
+
+    if (taxableValue > 0) {
+      let tAmt = 0;
+      if (taxPercent !== "") {
+        const tp = parseFloat(taxPercent);
+        if (!isNaN(tp) && tp >= 0) {
+          tAmt = Number((taxableValue * (tp / 100)).toFixed(2));
+          setTaxAmount(tAmt > 0 ? tAmt.toFixed(2) : "0.00");
+        }
+      } else if (taxAmount !== "") {
+        const parsedTax = parseFloat(taxAmount);
+        if (!isNaN(parsedTax) && parsedTax >= 0) tAmt = parsedTax;
+      }
+
+      let ro = 0;
+      if (roundOff !== "") {
+        const parsedRo = parseFloat(roundOff);
+        if (!isNaN(parsedRo)) ro = parsedRo;
+      }
+
+      const finalTotal = (taxableValue + tAmt + ro).toFixed(2);
+      setAmount(finalTotal);
     }
-  }, [qty, unitRate, isManualAmount]);
+  }, [qty, unitRate, taxPercent, roundOff, isManualAmount, isAdvance, taxableValue]);
 
   if (state?.ok) {
     return (
@@ -223,75 +259,6 @@ export function RequestForm({
         />
       </div>
 
-      {/* Line Item: Qty, Unit Rate, and Auto-calculated Total */}
-      <div className="rounded-xl border border-[#e2dbcc] bg-[#fbf9f4] p-4 space-y-3 shadow-xs">
-        <div className="text-xs font-bold uppercase tracking-wider text-[#1e3e30] flex items-center justify-between">
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-[#1e3e30]" />
-            Line Total Calculation
-          </span>
-          <span className="text-[11px] text-[#536658] font-normal normal-case">
-            Auto-calculates Line Total from Qty × Rate
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-          <div>
-            <label className={labelCls}>Quantity</label>
-            <input
-              name="qty"
-              type="number"
-              step="any"
-              min="0"
-              placeholder="e.g. 100"
-              className={inputCls}
-              value={qty}
-              onChange={(e) => {
-                setQty(e.target.value);
-                setIsManualAmount(false);
-              }}
-            />
-          </div>
-
-          <div>
-            <label className={labelCls}>Unit Rate (₹)</label>
-            <input
-              name="unit_rate"
-              type="number"
-              step="any"
-              min="0"
-              placeholder="e.g. 450.00"
-              className={inputCls}
-              value={unitRate}
-              onChange={(e) => {
-                setUnitRate(e.target.value);
-                setIsManualAmount(false);
-              }}
-            />
-          </div>
-
-          <div>
-            <label className={labelCls}>
-              Total Amount Requested (₹) <span className="text-red-600 font-bold">*</span>
-            </label>
-            <input
-              name="amount_requested"
-              type="number"
-              step="any"
-              min="1"
-              required
-              placeholder="Total ₹"
-              className={`${inputCls} font-bold text-[#14261c] bg-[#eaf3ed] border-[#cce3d4]`}
-              value={amount}
-              onChange={(e) => {
-                setAmount(e.target.value);
-                setIsManualAmount(true);
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
       {/* Payment Type & Against-Balance Prior Invoice Selector */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -303,7 +270,13 @@ export function RequestForm({
             required
             className={inputCls}
             value={paymentType}
-            onChange={(e) => setPaymentType(e.target.value)}
+            onChange={(e) => {
+              const newType = e.target.value;
+              setPaymentType(newType);
+              if (newType === "advance") {
+                setIsManualAmount(false);
+              }
+            }}
           >
             <option value="advance">Advance (against Quotation / Proforma)</option>
             <option value="against_invoice">Against Invoice</option>
@@ -346,7 +319,11 @@ export function RequestForm({
         ) : (
           <div>
             <label className={labelCls}>Supporting Document Classification</label>
-            <select name="doc_kind" className={inputCls} defaultValue="quotation">
+            <select
+              name="doc_kind"
+              className={inputCls}
+              defaultValue={paymentType === "advance" ? "quotation" : "invoice"}
+            >
               <option value="quotation">Quotation / Commercial Bid</option>
               <option value="proforma">Proforma Invoice</option>
               <option value="invoice">Tax Invoice</option>
@@ -357,6 +334,206 @@ export function RequestForm({
           </div>
         )}
       </div>
+
+      {/* Amount / Line Total Calculation Section */}
+      {isAdvance ? (
+        /* Advance Payment Mode: Only Total Amount Requested is required */
+        <div className="rounded-xl border border-[#d8e8dc] bg-[#f4f9f5] p-4 space-y-3 shadow-xs">
+          <div className="text-xs font-bold uppercase tracking-wider text-[#1e3e30] flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#1e3e30]" />
+              Advance Amount Requested
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-[#e0eee3] text-[#1e3e30]">
+              Advance Payment Mode
+            </span>
+          </div>
+
+          <div>
+            <label className={labelCls}>
+              Total Amount Requested (₹) <span className="text-red-600 font-bold">*</span>
+            </label>
+            <input
+              name="amount_requested"
+              type="number"
+              step="any"
+              min="1"
+              required
+              placeholder="e.g. 50000"
+              className={`${inputCls} font-bold text-[#14261c] bg-[#eaf3ed] border-[#cce3d4] text-lg`}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+            <p className="mt-1.5 text-xs text-[#536658]">
+              Advance payments against quotations / proforma are lump-sum; line-item quantity, tax rate, and round-off breakdowns are not required.
+            </p>
+          </div>
+        </div>
+      ) : (
+        /* Against Invoice / Balance Mode: Full Aligned Line Total Calculation */
+        <div className="rounded-xl border border-[#e2dbcc] bg-[#fbf9f4] p-4 space-y-4 shadow-xs">
+          <div className="text-xs font-bold uppercase tracking-wider text-[#1e3e30] flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#1e3e30]" />
+              Line Total Calculation
+            </span>
+            <span className="text-[11px] text-[#536658] font-normal normal-case">
+              Auto-calculates Line Total from Qty × Rate + Tax% + Round Off
+            </span>
+          </div>
+
+          {/* Row 1: Quantity, Unit Rate, Taxable Value */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div>
+              <label className={labelCls}>Quantity</label>
+              <input
+                name="qty"
+                type="number"
+                step="any"
+                min="0"
+                placeholder="e.g. 6.630"
+                className={inputCls}
+                value={qty}
+                onChange={(e) => {
+                  setQty(e.target.value);
+                  setIsManualAmount(false);
+                }}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Unit Rate (₹)</label>
+              <input
+                name="unit_rate"
+                type="number"
+                step="any"
+                min="0"
+                placeholder="e.g. 1500.00"
+                className={inputCls}
+                value={unitRate}
+                onChange={(e) => {
+                  setUnitRate(e.target.value);
+                  setIsManualAmount(false);
+                }}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Taxable Value (₹)</label>
+              <div className="flex items-center h-[42px] px-3.5 rounded-lg bg-[#f0ebd9] border border-[#dcd4c0] text-sm font-semibold text-[#14261c]">
+                {taxableValue > 0 ? inr(taxableValue) : "—"}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Tax %, Tax Amount, Round Off Rate */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1 border-t border-[#e8e2d4]">
+            <div>
+              <label className={labelCls}>
+                TAX % <span className="text-[11px] text-[#536658] font-normal normal-case">(optional)</span>
+              </label>
+              <input
+                name="tax_percent"
+                type="number"
+                step="any"
+                min="0"
+                placeholder="e.g. 18"
+                className={inputCls}
+                value={taxPercent}
+                onChange={(e) => {
+                  setTaxPercent(e.target.value);
+                  setIsManualAmount(false);
+                }}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>
+                TAX AMOUNT (₹) <span className="text-[11px] text-[#536658] font-normal normal-case">(optional)</span>
+              </label>
+              <input
+                name="tax_amount"
+                type="number"
+                step="any"
+                min="0"
+                placeholder="Auto / ₹"
+                className={inputCls}
+                value={taxAmount}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setTaxAmount(val);
+                  setIsManualAmount(false);
+                  const parsedT = parseFloat(val);
+                  if (!isNaN(parsedT) && taxableValue > 0) {
+                    setTaxPercent(Number(((parsedT / taxableValue) * 100).toFixed(2)).toString());
+                  }
+                }}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>
+                ROUND OFF RATE (+/-){" "}
+                <span className="text-[11px] text-[#536658] font-normal normal-case">(optional)</span>
+              </label>
+              <input
+                name="round_off"
+                type="number"
+                step="any"
+                placeholder="e.g. -0.10"
+                className={inputCls}
+                value={roundOff}
+                onChange={(e) => {
+                  setRoundOff(e.target.value);
+                  setIsManualAmount(false);
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Row 3: Total Amount Requested with live breakdown hint */}
+          <div className="pt-2 border-t border-[#e8e2d4]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <label className={labelCls}>
+                  Total Amount Requested (₹) <span className="text-red-600 font-bold">*</span>
+                </label>
+                <p className="text-[11px] text-[#536658]">
+                  {taxableValue > 0
+                    ? `Base: ${inr(taxableValue)} + Tax: ${inr(parseFloat(taxAmount) || 0)} ${roundOff ? `+ Round-off: ${roundOff}` : ""}`
+                    : "Auto-calculated total payable amount"}
+                </p>
+              </div>
+              <div className="sm:w-1/2">
+                <input
+                  name="amount_requested"
+                  type="number"
+                  step="any"
+                  min="1"
+                  required
+                  placeholder="Total ₹"
+                  className={`${inputCls} font-bold text-[#14261c] bg-[#eaf3ed] border-[#cce3d4] text-base`}
+                  value={amount}
+                  onChange={(e) => {
+                    setAmount(e.target.value);
+                    setIsManualAmount(true);
+                    // Automatically deduce tax rate if total is entered and taxable value is known
+                    const enteredTotal = parseFloat(e.target.value);
+                    const ro = parseFloat(roundOff) || 0;
+                    if (!isNaN(enteredTotal) && taxableValue > 0 && enteredTotal > taxableValue) {
+                      const deducedTax = Number((enteredTotal - ro - taxableValue).toFixed(2));
+                      if (deducedTax >= 0) {
+                        setTaxAmount(deducedTax.toString());
+                        setTaxPercent(Number(((deducedTax / taxableValue) * 100).toFixed(2)).toString());
+                      }
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mandatory Document Upload */}
       <div className="rounded-xl border border-[#d8e8dc] bg-[#f4f9f5] p-4 space-y-2 shadow-xs">

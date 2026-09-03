@@ -84,6 +84,9 @@ export interface MockFundRequest {
   product_sku: string | null;
   qty: number | null;
   unit_rate: number | null;
+  tax_percent?: number | null;
+  tax_amount?: number | null;
+  round_off?: number | null;
   amount_requested: number;
   amount_approved: number | null;
   amount_paid: number;
