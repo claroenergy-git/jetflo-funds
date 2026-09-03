@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSupabase } from "@/lib/supabase/server";
-import { requireProfile, REQUEST_COLS } from "@/lib/data";
+import { requireProfile, REQUEST_COLS, REQUEST_COLS_WITH_TAX } from "@/lib/data";
 import { Card, StatusChip, Alert } from "@/components/ui";
 import { inr, fmtDate, fmtDateTime } from "@/lib/format";
 import { CATEGORY_LABEL, STATUS_LABEL, type Status } from "@/lib/types";
@@ -15,9 +15,8 @@ const ACTION_LABEL: Record<string, string> = {
   approved: "Approved",
   partially_approved: "Partially approved",
   rejected: "Rejected",
-  payment_recorded: "Payment recorded",
-  paid: "Fully paid",
-  closed: "Closed",
+  paid: "Payment recorded",
+  closed: "Closed with invoice",
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -27,9 +26,13 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const profile = await requireProfile();
   const supabase = await getSupabase();
 
-  const { data } = await supabase.from("jetflo_fund_requests").select(REQUEST_COLS).eq("id", id).single();
-  if (!data) notFound();
-  const r = data as any;
+  const resWithTax = await supabase.from("jetflo_fund_requests").select(REQUEST_COLS_WITH_TAX).eq("id", id).single();
+  let r: any = resWithTax.data;
+  if (resWithTax.error) {
+    const fallbackRes = await supabase.from("jetflo_fund_requests").select(REQUEST_COLS).eq("id", id).single();
+    r = fallbackRes.data;
+  }
+  if (!r) notFound();
 
   const [{ data: attachments }, { data: payments }, { data: audit }, { data: users }] = await Promise.all([
     supabase.from("jetflo_attachments").select("*").eq("request_id", id).order("created_at"),

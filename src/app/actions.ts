@@ -60,6 +60,45 @@ async function uploadAttachment(
   }
 }
 
+async function safeDbInsert(
+  client: any,
+  table: string,
+  payload: Record<string, unknown>
+): Promise<{ data: any; error: any }> {
+  const current = { ...payload };
+  while (true) {
+    const res = await client.from(table).insert(current).select("id, request_no").single();
+    if (res.error) {
+      const match = res.error.message?.match(/Could not find the '([^']+)' column of/i);
+      if (match && match[1] && match[1] in current) {
+        delete current[match[1]];
+        continue;
+      }
+    }
+    return res;
+  }
+}
+
+async function safeDbUpdate(
+  client: any,
+  table: string,
+  payload: Record<string, unknown>,
+  id: string
+): Promise<{ error: any }> {
+  const current = { ...payload };
+  while (true) {
+    const res = await client.from(table).update(current).eq("id", id);
+    if (res.error) {
+      const match = res.error.message?.match(/Could not find the '([^']+)' column of/i);
+      if (match && match[1] && match[1] in current) {
+        delete current[match[1]];
+        continue;
+      }
+    }
+    return res;
+  }
+}
+
 // ---------- auth ----------
 
 export async function signIn(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
@@ -157,9 +196,6 @@ export async function createRequest(_prev: ActionResult | null, formData: FormDa
       product_sku: String(formData.get("product_sku") || "") || null,
       qty,
       unit_rate: rate,
-      tax_percent: taxPercent,
-      tax_amount: taxAmount,
-      round_off: roundOff,
       amount_requested: amount,
       urgency: "normal",
       need_by_date: null,
@@ -168,9 +204,13 @@ export async function createRequest(_prev: ActionResult | null, formData: FormDa
       status: "draft",
       requester_id: userId,
       duplicate_warning: isDupe,
-      parent_request_id: parentRequestId,
-      prior_invoice_no: priorInvoiceNo,
     };
+
+    if (taxPercent !== null && !isNaN(taxPercent)) insertPayload.tax_percent = taxPercent;
+    if (taxAmount !== null && !isNaN(taxAmount)) insertPayload.tax_amount = taxAmount;
+    if (roundOff !== null && !isNaN(roundOff)) insertPayload.round_off = roundOff;
+    if (parentRequestId) insertPayload.parent_request_id = parentRequestId;
+    if (priorInvoiceNo) insertPayload.prior_invoice_no = priorInvoiceNo;
 
     const existingId = String(formData.get("id") || "").trim();
     let requestId = existingId;
@@ -178,17 +218,10 @@ export async function createRequest(_prev: ActionResult | null, formData: FormDa
     const admin = getSupabaseAdmin();
 
     if (existingId) {
-      const { error: upErr } = await admin
-        .from("jetflo_fund_requests")
-        .update(insertPayload)
-        .eq("id", existingId);
+      const { error: upErr } = await safeDbUpdate(admin, "jetflo_fund_requests", insertPayload, existingId);
       if (upErr) return { ok: false, error: upErr.message };
     } else {
-      const { data: inserted, error } = await admin
-        .from("jetflo_fund_requests")
-        .insert(insertPayload)
-        .select("id, request_no")
-        .single();
+      const { data: inserted, error } = await safeDbInsert(admin, "jetflo_fund_requests", insertPayload);
       if (error) return { ok: false, error: error.message };
       requestId = inserted.id;
     }
@@ -661,28 +694,28 @@ export async function updateDraft(_prev: ActionResult | null, formData: FormData
     const parentRequestId = String(formData.get("parent_request_id") || "").trim() || null;
     const priorInvoiceNo = String(formData.get("prior_invoice_no") || "").trim() || null;
 
-    const { error } = await supabase
-      .from("jetflo_fund_requests")
-      .update({
-        category,
-        budget_head_id: budgetHeadId,
-        vendor_id: vendorId,
-        item_description: itemDescription,
-        product_sku: String(formData.get("product_sku") || "") || null,
-        qty,
-        unit_rate: rate,
-        tax_percent: taxPercent,
-        tax_amount: taxAmount,
-        round_off: roundOff,
-        amount_requested: amount,
-        urgency: "normal",
-        need_by_date: null,
-        payment_type: paymentType,
-        justification: notes || null,
-        parent_request_id: parentRequestId,
-        prior_invoice_no: priorInvoiceNo,
-      })
-      .eq("id", id);
+    const updatePayload: Record<string, unknown> = {
+      category,
+      budget_head_id: budgetHeadId,
+      vendor_id: vendorId,
+      item_description: itemDescription,
+      product_sku: String(formData.get("product_sku") || "") || null,
+      qty,
+      unit_rate: rate,
+      amount_requested: amount,
+      urgency: "normal",
+      need_by_date: null,
+      payment_type: paymentType,
+      justification: notes || null,
+    };
+
+    if (taxPercent !== null && !isNaN(taxPercent)) updatePayload.tax_percent = taxPercent;
+    if (taxAmount !== null && !isNaN(taxAmount)) updatePayload.tax_amount = taxAmount;
+    if (roundOff !== null && !isNaN(roundOff)) updatePayload.round_off = roundOff;
+    if (parentRequestId) updatePayload.parent_request_id = parentRequestId;
+    if (priorInvoiceNo) updatePayload.prior_invoice_no = priorInvoiceNo;
+
+    const { error } = await safeDbUpdate(supabase, "jetflo_fund_requests", updatePayload, id);
     if (error) return { ok: false, error: error.message.replace(/^.*?exception:\s*/i, "") };
 
     const docFile = (formData.get("doc_file") || formData.get("quotation")) as File | null;
