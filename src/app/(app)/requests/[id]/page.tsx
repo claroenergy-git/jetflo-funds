@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSupabase } from "@/lib/supabase/server";
-import { requireProfile, REQUEST_COLS, REQUEST_COLS_WITH_TAX, REQUEST_COLS_LEGACY } from "@/lib/data";
+import { requireProfile, REQUEST_COLS, REQUEST_COLS_WITH_CURRENCY } from "@/lib/data";
 import { Card, StatusChip, Alert } from "@/components/ui";
 import { inr, fmtMoney, fmtDate, fmtDateTime } from "@/lib/format";
 import { CATEGORY_LABEL, STATUS_LABEL, type Status } from "@/lib/types";
@@ -17,8 +17,8 @@ const ACTION_LABEL: Record<string, string> = {
   partially_approved: "Partially approved",
   rejected: "Rejected",
   paid: "Payment recorded",
-  closed: "Closed with invoice",
-  currency_amended: "Formal currency amendment applied",
+  closed: "Closed",
+  currency_amended: "Currency & Amount Formally Amended",
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -28,10 +28,10 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const profile = await requireProfile();
   const supabase = await getSupabase();
 
-  const resWithTax = await supabase.from("jetflo_fund_requests").select(REQUEST_COLS_WITH_TAX).eq("id", id).single();
-  let r: any = resWithTax.data;
-  if (resWithTax.error) {
-    const fallbackRes = await supabase.from("jetflo_fund_requests").select(REQUEST_COLS_LEGACY).eq("id", id).single();
+  const resWithCurrency = await supabase.from("jetflo_fund_requests").select(REQUEST_COLS_WITH_CURRENCY).eq("id", id).single();
+  let r: any = resWithCurrency.data;
+  if (resWithCurrency.error) {
+    const fallbackRes = await supabase.from("jetflo_fund_requests").select(REQUEST_COLS).eq("id", id).single();
     r = fallbackRes.data;
   }
   if (!r) notFound();

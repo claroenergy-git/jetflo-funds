@@ -25,7 +25,7 @@ export const REQUEST_COLS = `
   payment_type, justification, status, duplicate_warning, goods_received, approval_remarks, rejection_reason,
   submitted_at, decided_at, first_paid_at, closed_at, created_at,
   budget_head:jetflo_budget_heads ( id, category, sub_head, sanctioned_amount ),
-  vendor:jetflo_vendors ( id, name, is_foreign, country ),
+  vendor:jetflo_vendors ( id, name ),
   requester:jetflo_users!jetflo_fund_requests_requester_id_fkey ( id, name ),
   approver:jetflo_users!jetflo_fund_requests_approved_by_fkey ( id, name ),
   second_approver:jetflo_users!jetflo_fund_requests_second_approved_by_fkey ( id, name )
@@ -33,6 +33,7 @@ export const REQUEST_COLS = `
 
 export const REQUEST_COLS_LEGACY = `
   id, request_no, category, item_description, product_sku, qty, unit_rate,
+  tax_percent, tax_amount, round_off, parent_request_id, prior_invoice_no,
   amount_requested, amount_approved, amount_paid, urgency, need_by_date,
   payment_type, justification, status, duplicate_warning, goods_received, approval_remarks, rejection_reason,
   submitted_at, decided_at, first_paid_at, closed_at, created_at,
@@ -43,4 +44,5 @@ export const REQUEST_COLS_LEGACY = `
   second_approver:jetflo_users!jetflo_fund_requests_second_approved_by_fkey ( id, name )
 `;
 
+export const REQUEST_COLS_WITH_CURRENCY = REQUEST_COLS;
 export const REQUEST_COLS_WITH_TAX = REQUEST_COLS;
