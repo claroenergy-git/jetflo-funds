@@ -7,6 +7,7 @@ import { CATEGORY_LABEL, STATUS_LABEL, type Status } from "@/lib/types";
 import { DecisionPanel, PaymentForm, CloseForm } from "@/components/action-panels";
 import { RequestForm } from "@/components/request-form";
 import { ChangeCurrencyModal } from "@/components/change-currency-modal";
+import { getVendorDocuments } from "@/lib/vendor-docs";
 
 const ACTION_LABEL: Record<string, string> = {
   created: "Request created",
@@ -50,6 +51,8 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       return { ...a, url: data?.signedUrl ?? null };
     })
   );
+
+  const vendorDocs = r.vendor?.id ? await getVendorDocuments(r.vendor.id) : [];
 
   const status = r.status as Status;
   const balance = Number(r.amount_approved ?? 0) - Number(r.amount_paid ?? 0);
@@ -169,7 +172,31 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
             {[
               ["Category", CATEGORY_LABEL[r.category]],
               ["Sub-head", r.budget_head?.sub_head],
-              ["Vendor", r.vendor?.name + (r.vendor?.is_foreign ? " 🌐 (Foreign)" : "")],
+              [
+                "Vendor",
+                <div key="vendor-info" className="flex items-center gap-2 flex-wrap">
+                  <span>{r.vendor?.name + (r.vendor?.is_foreign ? " 🌐 (Foreign)" : "")}</span>
+                  {vendorDocs.length > 0 && (
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {vendorDocs.map((vd) => (
+                        <a
+                          key={vd.path}
+                          href={vd.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#eaf3ed] text-[#1e3e30] border border-[#cce3d4] hover:bg-[#d8e8dc] transition shadow-2xs group"
+                          title={`View ${vd.docTypeLabel} (${vd.originalName}) - Read-only`}
+                        >
+                          <span>{vd.kind === "bank_proof" ? "📄 Bank Proof" : "📜 Tax Cert"}</span>
+                          <span className="text-[9px] text-[#2d5a44] group-hover:translate-x-0.5 transition-transform">
+                            ↗
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>,
+              ],
               ...(r.product_sku ? [["Product / SKU", r.product_sku]] : []),
               ["Transaction Currency", (r.currency || "INR").toUpperCase() === "USD" ? "USD ($) — Foreign Transaction" : "INR (₹) — Domestic (India)"],
               ...(r.qty ? [["Qty × Rate", `${r.qty} × ${fmtMoney(r.unit_rate, r.currency)}`]] : []),

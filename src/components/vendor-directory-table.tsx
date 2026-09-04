@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { inr } from "@/lib/format";
+import type { VendorDocument } from "@/lib/vendor-docs";
 
 export interface VendorItem {
   id: string;
@@ -14,6 +14,23 @@ export interface VendorItem {
   active: boolean;
   created_at: string;
   created_by?: string | null;
+  status?: string | null;
+  contact_person?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  pan?: string | null;
+  address_line?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  bank_beneficiary_name?: string | null;
+  account_type?: string | null;
+  is_foreign?: boolean;
+  country?: string | null;
+  vat_no?: string | null;
+  swift_code?: string | null;
+  bank_doc_type?: string | null;
+  documents?: VendorDocument[];
 }
 
 export function VendorDirectoryTable({
@@ -27,6 +44,7 @@ export function VendorDirectoryTable({
 }) {
   const [filter, setFilter] = useState<"all" | "in_process" | "approved" | "rejected">("all");
   const [search, setSearch] = useState("");
+  const [selectedVendor, setSelectedVendor] = useState<VendorItem | null>(null);
 
   const filtered = vendors.filter((v) => {
     // Status filter
@@ -41,7 +59,8 @@ export function VendorDirectoryTable({
       const matchGstin = (v.gstin ?? "").toLowerCase().includes(q);
       const matchBank = (v.bank_name ?? "").toLowerCase().includes(q);
       const matchIfsc = (v.ifsc ?? "").toLowerCase().includes(q);
-      if (!matchName && !matchGstin && !matchBank && !matchIfsc) return false;
+      const matchCountry = (v.country ?? "").toLowerCase().includes(q);
+      if (!matchName && !matchGstin && !matchBank && !matchIfsc && !matchCountry) return false;
     }
 
     return true;
@@ -61,8 +80,8 @@ export function VendorDirectoryTable({
           </h2>
           <p className="text-xs text-[#536658] mt-0.5">
             {isFinance
-              ? "Universal vendor master ledger and verification pipeline"
-              : "Track the verification status of your onboarded vendors"}
+              ? "Universal vendor master ledger and verification pipeline (Audited & Locked)"
+              : "Track the verification status of your onboarded vendors (Read-only attachments)"}
           </p>
         </div>
 
@@ -120,19 +139,21 @@ export function VendorDirectoryTable({
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[620px] text-sm">
+        <table className="w-full min-w-[780px] text-sm">
           <thead>
             <tr className="border-b border-[#e5decb] bg-[#fbf9f4] text-left text-xs font-bold uppercase tracking-wider text-[#415546]">
-              <th className="px-6 py-3.5">Vendor Legal / Trade Name</th>
-              <th className="px-6 py-3.5">GSTIN / Tax ID</th>
-              <th className="px-6 py-3.5">Disbursement Bank & Code</th>
-              <th className="px-6 py-3.5 text-right">Approval Status</th>
+              <th className="px-5 py-3.5">Vendor Legal / Trade Name</th>
+              <th className="px-4 py-3.5">GSTIN / Tax ID</th>
+              <th className="px-4 py-3.5">Disbursement Bank & Code</th>
+              <th className="px-4 py-3.5">Verification Attachments (Read-Only)</th>
+              <th className="px-4 py-3.5">Status</th>
+              <th className="px-4 py-3.5 text-right">Details</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#e5decb]">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-xs text-[#536658]">
+                <td colSpan={6} className="px-6 py-12 text-center text-xs text-[#536658]">
                   <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-[#f0ebd9] text-[#1e3e30] text-lg">
                     🏢
                   </div>
@@ -145,13 +166,19 @@ export function VendorDirectoryTable({
               </tr>
             ) : (
               filtered.map((v) => {
-                const isForeignVendor = v.ifsc && v.ifsc.length <= 11 && !/^[A-Z]{4}0/.test(v.ifsc);
+                const isForeignVendor = Boolean(
+                  v.is_foreign || (v.country && v.country.toLowerCase() !== "india")
+                );
                 const isOwner = currentUserId && v.created_by === currentUserId;
+                const docs = v.documents ?? [];
+                const bankDoc = docs.find((d) => d.kind === "bank_proof");
+                const taxDoc = docs.find((d) => d.kind === "gst_cert");
 
                 return (
                   <tr key={v.id} className="hover:bg-[#fbf9f4] transition-colors">
-                    <td className="px-6 py-4 font-bold text-[#14261c]">
-                      <div className="flex items-center gap-2">
+                    {/* Legal / Trade Name */}
+                    <td className="px-5 py-4 font-bold text-[#14261c]">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span>{v.name}</span>
                         {isForeignVendor && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
@@ -168,10 +195,14 @@ export function VendorDirectoryTable({
                         <div className="text-[11px] font-normal text-[#536658] mt-0.5">{v.trade_name}</div>
                       )}
                     </td>
-                    <td className="px-6 py-4 font-mono text-xs text-[#1e3e30] font-semibold">
-                      {v.gstin ?? "GST Exempt / Unregistered"}
+
+                    {/* GSTIN / Tax ID */}
+                    <td className="px-4 py-4 font-mono text-xs text-[#1e3e30] font-semibold">
+                      {v.gstin ?? v.vat_no ?? "GST Exempt / Unregistered"}
                     </td>
-                    <td className="px-6 py-4 text-xs text-[#536658]">
+
+                    {/* Bank Details */}
+                    <td className="px-4 py-4 text-xs text-[#536658]">
                       <div className="font-bold text-[#14261c]">{v.bank_name ?? "—"}</div>
                       <div className="font-mono text-[11px] text-[#7a8d80] mt-0.5">
                         {v.ifsc ? (isForeignVendor ? `SWIFT: ${v.ifsc}` : `IFSC: ${v.ifsc}`) : "—"}
@@ -182,7 +213,54 @@ export function VendorDirectoryTable({
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right">
+
+                    {/* Verification Attachments (Viewing, Not Editing) */}
+                    <td className="px-4 py-4">
+                      {docs.length === 0 ? (
+                        <span className="text-[11px] text-[#7a8d80] italic">None uploaded</span>
+                      ) : (
+                        <div className="flex flex-col gap-1.5">
+                          {bankDoc && (
+                            <a
+                              href={bankDoc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#eaf3ed] text-[#1e3e30] border border-[#cce3d4] hover:bg-[#d8e8dc] hover:border-[#1e3e30] transition shadow-2xs group max-w-fit"
+                              title={`View ${bankDoc.docTypeLabel} (${bankDoc.originalName}) - Read-only`}
+                            >
+                              <span className="text-xs">📄</span>
+                              <span className="truncate max-w-[140px]">
+                                {bankDoc.docTypeLabel.replace(/^\d+\.\s*/, "")}
+                              </span>
+                              <span className="text-[10px] text-[#2d5a44] group-hover:translate-x-0.5 transition-transform">
+                                ↗
+                              </span>
+                            </a>
+                          )}
+
+                          {taxDoc && (
+                            <a
+                              href={taxDoc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#fffbeb] text-[#92400e] border border-[#fde68a] hover:bg-[#fef3c7] hover:border-[#d97706] transition shadow-2xs group max-w-fit"
+                              title={`View ${taxDoc.docTypeLabel} (${taxDoc.originalName}) - Read-only`}
+                            >
+                              <span className="text-xs">📜</span>
+                              <span className="truncate max-w-[140px]">
+                                {isForeignVendor ? "VAT / Tax Cert" : "GST Certificate"}
+                              </span>
+                              <span className="text-[10px] text-[#b45309] group-hover:translate-x-0.5 transition-transform">
+                                ↗
+                              </span>
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-4 py-4">
                       {v.active ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#dcfce7] text-[#166534] border border-[#bbf7d0]">
                           <span className="h-1.5 w-1.5 rounded-full bg-[#166534]" />
@@ -195,6 +273,19 @@ export function VendorDirectoryTable({
                         </span>
                       )}
                     </td>
+
+                    {/* Full Dossier View */}
+                    <td className="px-4 py-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedVendor(v)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-[#1e3e30] border border-[#dcd4c0] hover:bg-[#f0ebd9] hover:border-[#1e3e30] transition cursor-pointer shadow-2xs"
+                        title="View Full Vendor Verification Dossier & Attachments"
+                      >
+                        <span>👁️</span>
+                        <span>Dossier</span>
+                      </button>
+                    </td>
                   </tr>
                 );
               })
@@ -202,6 +293,229 @@ export function VendorDirectoryTable({
           </tbody>
         </table>
       </div>
+
+      {/* Read-Only Vendor Verification Dossier Modal */}
+      {selectedVendor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-[#cbe1d3] bg-[#fbf9f4] p-6 shadow-2xl space-y-5 text-left">
+            {/* Header */}
+            <div className="border-b border-[#e5decb] pb-4 flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#eaf3ed] text-[#1e3e30] border border-[#cce3d4]">
+                    🔒 Locked Verification Record (Read-Only)
+                  </span>
+                  {selectedVendor.active ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#dcfce7] text-[#166534] border border-[#bbf7d0]">
+                      Approved & Active
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
+                      In Process (Pending Accounts)
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-lg font-bold text-[#14261c] mt-2 flex items-center gap-2">
+                  <span>{selectedVendor.name}</span>
+                </h2>
+                {selectedVendor.trade_name && (
+                  <p className="text-xs text-[#536658]">Trade Alias: {selectedVendor.trade_name}</p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedVendor(null)}
+                className="rounded-lg p-1.5 text-[#536658] hover:bg-[#e5decb] hover:text-[#14261c] transition cursor-pointer"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Read-only Alert Notice */}
+            <div className="rounded-xl border border-[#d8e8dc] bg-[#f4f9f5] p-3 text-xs text-[#2d5a44] flex items-center gap-2 font-medium">
+              <span className="text-base">🛡️</span>
+              <span>
+                <b>Dual-Control Compliance:</b> Bank proofs and statutory documents submitted for this vendor are securely locked against editing to preserve auditing integrity for Ground and Accounts teams.
+              </span>
+            </div>
+
+            {/* Banking & Disbursement Ledger */}
+            <div className="rounded-xl border border-[#e5decb] bg-white p-4 space-y-3 shadow-2xs">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#1e3e30] flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#1e3e30]" />
+                Banking & Disbursement Details
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#7a8d80]">Disbursement Bank</span>
+                  <div className="font-bold text-[#14261c] mt-0.5">{selectedVendor.bank_name ?? "—"}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#7a8d80]">Account / IBAN Number</span>
+                  <div className="font-mono font-bold text-[#14261c] mt-0.5">
+                    {selectedVendor.account_no ?? "—"}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#7a8d80]">
+                    {selectedVendor.is_foreign ? "SWIFT / BIC Code" : "IFSC Code"}
+                  </span>
+                  <div className="font-mono font-bold text-[#14261c] mt-0.5">
+                    {selectedVendor.ifsc ?? selectedVendor.swift_code ?? "—"}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#7a8d80]">Beneficiary Name</span>
+                  <div className="font-medium text-[#14261c] mt-0.5">
+                    {selectedVendor.bank_beneficiary_name ?? selectedVendor.name}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#7a8d80]">Account Type</span>
+                  <div className="capitalize font-medium text-[#14261c] mt-0.5">
+                    {selectedVendor.account_type ?? "Current"}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#7a8d80]">Jurisdiction</span>
+                  <div className="font-medium text-[#14261c] mt-0.5">
+                    {selectedVendor.is_foreign
+                      ? `Foreign (${selectedVendor.country ?? "Overseas"})`
+                      : "Domestic (India)"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Verification Attachments (Read-Only) */}
+            <div className="rounded-xl border border-[#d8e8dc] bg-[#f4f9f5] p-4 space-y-3 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold uppercase tracking-wider text-[#1e3e30] flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-[#2d5a44]" />
+                  Uploaded Verification Attachments (Viewing Only)
+                </div>
+                <span className="text-[10px] font-bold text-[#2d5a44] bg-[#eaf3ed] px-2 py-0.5 rounded-full border border-[#cce3d4]">
+                  🔒 Verified & Locked
+                </span>
+              </div>
+
+              {(!selectedVendor.documents || selectedVendor.documents.length === 0) ? (
+                <div className="p-4 rounded-xl border border-[#dcd4c0] bg-white text-center text-xs text-[#536658]">
+                  No verification documents were attached during onboarding.
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {selectedVendor.documents.map((doc, idx) => (
+                    <div
+                      key={doc.path || idx}
+                      className="rounded-xl border border-[#dcd4c0] bg-white p-3.5 flex flex-col justify-between shadow-2xs hover:border-[#1e3e30] transition"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#2d5a44] bg-[#eaf3ed] px-2 py-0.5 rounded-md border border-[#cce3d4]">
+                            {doc.kind === "bank_proof" ? "Bank Verification" : "Tax / Statutory Proof"}
+                          </span>
+                          <span className="text-[10px] font-medium text-[#7a8d80]">
+                            Read-Only
+                          </span>
+                        </div>
+                        <h3 className="text-xs font-bold text-[#14261c] mt-2">
+                          {doc.docTypeLabel}
+                        </h3>
+                        <p className="text-[11px] font-mono text-[#536658] truncate mt-0.5" title={doc.originalName}>
+                          {doc.originalName}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 pt-3 border-t border-[#f0ebd9] flex items-center justify-between">
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#1e3e30] text-white hover:bg-[#2d5a44] transition shadow-2xs"
+                        >
+                          <span>👁️ View Document</span>
+                          <span className="text-[10px]">↗</span>
+                        </a>
+                        <a
+                          href={doc.url}
+                          download={doc.originalName}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-bold text-[#536658] hover:text-[#1e3e30] hover:underline"
+                        >
+                          Download
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Statutory & Entity Information */}
+            <div className="rounded-xl border border-[#e5decb] bg-white p-4 space-y-3 shadow-2xs">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#1e3e30] flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#1e3e30]" />
+                Statutory & Contact Information
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#7a8d80]">GSTIN / VAT ID</span>
+                  <div className="font-mono font-bold text-[#14261c] mt-0.5">
+                    {selectedVendor.gstin ?? selectedVendor.vat_no ?? "Exempt / Unregistered"}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#7a8d80]">PAN / Tax Specimen</span>
+                  <div className="font-mono font-bold text-[#14261c] mt-0.5">
+                    {selectedVendor.pan ?? "—"}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#7a8d80]">Contact Person</span>
+                  <div className="font-medium text-[#14261c] mt-0.5">
+                    {selectedVendor.contact_person ?? "—"}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#7a8d80]">Email (Accounts)</span>
+                  <div className="font-medium text-[#14261c] mt-0.5">
+                    {selectedVendor.email ?? "—"}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#7a8d80]">Phone / Mobile</span>
+                  <div className="font-medium text-[#14261c] mt-0.5">
+                    {selectedVendor.phone ?? "—"}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#7a8d80]">Address / Plant Location</span>
+                  <div className="font-medium text-[#14261c] mt-0.5">
+                    {[selectedVendor.city, selectedVendor.state, selectedVendor.country]
+                      .filter(Boolean)
+                      .join(", ") || "Coimbatore Plant Operations"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedVendor(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-[#1e3e30] text-white hover:bg-[#2d5a44] transition cursor-pointer shadow-xs"
+              >
+                Close Dossier
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
