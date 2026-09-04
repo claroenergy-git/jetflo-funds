@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getSupabase } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/data";
 import { PageTitle } from "@/components/ui";
@@ -73,9 +74,16 @@ export default async function VendorsPage() {
                   const taxDoc = docs.find((d) => d.kind === "gst_cert");
 
                   return (
-                    <tr key={v.id} className="hover:bg-white/60">
+                    <tr key={v.id} className="hover:bg-white/80 transition-colors">
                       <td className="px-4 py-3 font-bold text-[#14261c]">
-                        <div>{v.name}</div>
+                        <Link
+                          href={`/finance/vendors/${v.id}`}
+                          className="hover:underline hover:text-[#92400e] flex items-center gap-1 group"
+                          title="Open full vendor record and verification dossier"
+                        >
+                          <span>{v.name}</span>
+                          <span className="text-[10px] text-[#92400e] opacity-70 group-hover:opacity-100">↗</span>
+                        </Link>
                         <div className="text-[11px] text-[#92400e] font-semibold">Pending Approval</div>
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-[#92400e] font-semibold">
