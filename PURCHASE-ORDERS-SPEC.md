@@ -198,24 +198,31 @@ PO table can reuse identical arithmetic.
   second approval if not), email the generated PDF to the vendor's `contact_person` /
   `email`. Never fires from `draft` or `pending_second_approval`.
 
-## 6.2 Open questions still needed before this is buildable
+## 6.2 Decisions (settled)
 
-1. **If a request linked to a PO is rejected or sent back**, does its reserved amount
-   free back up immediately (so the PO's remaining balance goes back up), or only once
-   it's fully out of the workflow? Proposed default: yes, immediately — a rejected
-   request never should have held budget in the first place.
-2. **Can a PO's line items be amended after issuance** (e.g. vendor scope grows), or does
-   scope growth require a brand-new PO? You already have a formal amendment mechanic for
-   currency changes (`currency_amended`, with reason + audit trail) — proposed default:
-   reuse that exact pattern here too (an `amended` flag + reason + before/after line
-   snapshot), rather than allowing silent edits to an issued PO.
-3. **Currency mismatch**: must a linked request's currency match its PO's currency, or
-   can a USD PO absorb an INR-equivalent invoice? Proposed default: must match — avoids
-   FX-rate ambiguity in the balance math entirely.
+1. **Rejected/sent-back requests free their PO balance immediately.** The moment a
+   linked request leaves `submitted`/`awaiting_second_approval` via rejection or a
+   send-back, it drops out of the "cumulative approved against this PO" sum used by the
+   approval-time trigger (§4) — enforced by scoping that sum to requests whose status is
+   in the active/approved/paid set, not by a separate release step.
+2. **Issued POs can be amended, logged the same way currency amendments are today.**
+   Amending a `open`/`partially_billed` PO's line items requires a reason, keeps a
+   before/after snapshot (mirroring `currency_amended` / `previous_amount` /
+   `currency_amendment_reason` on `jetflo_fund_requests`), and surfaces on the dashboard
+   alert banner alongside currency amendments so leadership sees both kinds of
+   after-the-fact changes in one place. `total_value` is recomputed from the amended
+   lines; if the amendment reduces value below what's already been approved against it,
+   the trigger from §4 blocks the amendment itself (can't shrink a PO below what's
+   already committed).
+3. **Currency must match.** A request's `currency` must equal its PO's `currency` for
+   `po_id` to be set — enforced as a check in the same trigger that validates the
+   approval, not just a UI-level filter, so it can't be bypassed via direct API access
+   either.
 4. **RLS**: everyone can `select` (read) issued POs; `draft` POs are visible only to
    finance (a half-written draft shouldn't appear on anyone else's screen); only finance
    can `insert`/`update`/edit line items. Second-approval `update` (the `approved_by` /
    status flip) needs the same "different user than creator" check the fund-request
    trigger already does at [001_jetflo_schema_core.sql:224](supabase/migrations/001_jetflo_schema_core.sql#L224).
 
-Once 1–3 are settled, this is fully specced and I can write the migration.
+This is now fully specced. Next step is the migration (schema + triggers + RLS), then
+server actions, then UI.

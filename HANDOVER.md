@@ -25,6 +25,13 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ…                   # server-only, bypasses RLS �
 The service-role key is used by **one** file, `scripts/seed-users.mjs`, and nothing else.
 The app itself runs entirely on the publishable key + row-level security.
 
+**Notifications** (added after this handover was written) need one more set of
+credentials: an SMTP login for the mailbox/relay that should send `@claroenergy.in`
+notification mail (submit/second-approval/payment/currency-amendment events — see
+`src/lib/mailer.ts`). Ask IT/Workspace admin for `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+`SMTP_PASSWORD`; leave them blank to run the app with notifications disabled (nothing
+breaks, mail is just silently skipped). See `.env.local.example` for the full list.
+
 Supabase project: **`Kar-July2026`**, region `ap-southeast-1`. Note this project is
 **shared with an existing HR dashboard** — every table, function and trigger belonging to
 this app is prefixed `jetflo_`. Do not touch the unprefixed tables (`employees`,
@@ -42,14 +49,19 @@ npm run dev                          # http://localhost:3000
 
 The database is already migrated and seeded, so this is all you need.
 
-Demo logins — password `JetFlo@2026` for all four:
+Logins — password `JetFlo@2026` for all:
 
 | Role | Email |
 |---|---|
-| Requester (ground team) | `ground@jetflo.in` |
-| Finance (approver 1) | `finance@claroenergy.in` |
-| Finance (approver 2) | `finance2@claroenergy.in` |
-| Leadership (read-only) | `leadership@claroenergy.in` |
+| Requester (ground team) | `raju.r@claromfg.com` |
+| Finance (approver 1) | `accounts@claroenergy.in` |
+| Finance (approver 2) | `gaurav@claroenergy.in` |
+| Leadership (read-only) | `kartik@claroenergy.in`, `soumitra@claroenergy.in`, `yash.parashar@claroenergy.in` |
+
+> The previously-listed `ground@jetflo.in` / `finance@claroenergy.in` / `finance2@claroenergy.in`
+> / `leadership@claroenergy.in` accounts were unused dummy accounts (confirmed zero linked
+> requests, payments, vendors, or audit rows) and have been deleted from both `auth.users`
+> and `jetflo_users`. Use the accounts above going forward.
 
 To rebuild the database from scratch on a **new** Supabase project, run in this order:
 

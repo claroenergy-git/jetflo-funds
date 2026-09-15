@@ -41,7 +41,7 @@ export default async function DashboardPage({
       );
   }
 
-  const [{ data: payments }, { data: heads }, { data: settings }] = await Promise.all([
+  const [{ data: payments }, { data: heads }, { data: settings }, { data: pos }] = await Promise.all([
     supabase
       .from("jetflo_payments")
       .select(
@@ -52,7 +52,69 @@ export default async function DashboardPage({
       .order("paid_on"),
     supabase.from("jetflo_budget_heads").select("*").eq("category", "capex").eq("active", true),
     supabase.from("jetflo_settings").select("key, value"),
+    supabase
+      .from("jetflo_purchase_orders")
+      .select(`
+        id, po_number, currency, total_value, status, created_at, expected_delivery_date, destination_plant, receive_status,
+        vendor:jetflo_vendors ( name ),
+        items:jetflo_purchase_order_items ( id, qty, qty_received )
+      `)
+      .neq("status", "draft")
+      .neq("status", "cancelled")
+      .order("created_at", { ascending: false }),
   ]);
+
+  let posData: any[] = (pos ?? []) as any[];
+  if (!pos || (pos as any).error) {
+    const fallbackRes = await supabase
+      .from("jetflo_purchase_orders")
+      .select("id, po_number, currency, total_value, status, vendor:jetflo_vendors ( name )")
+      .neq("status", "draft")
+      .neq("status", "cancelled")
+      .order("created_at", { ascending: false });
+    posData = (fallbackRes.data ?? []) as any[];
+  }
+
+  const poIds = (posData ?? []).map((p: any) => p.id);
+  const { data: poLinkedRequests } = poIds.length
+    ? await supabase
+        .from("jetflo_fund_requests")
+        .select("po_id, amount_approved, amount_paid, status")
+        .in("po_id", poIds)
+    : { data: [] as any[] };
+
+  const todayTimestamp = new Date().setHours(0, 0, 0, 0);
+
+  const poRows = (posData ?? []).map((p: any) => {
+    const linked = (poLinkedRequests ?? []).filter((r: any) => r.po_id === p.id);
+    const billed = linked
+      .filter((r: any) => ["awaiting_second_approval", "approved", "partially_approved", "paid", "closed"].includes(r.status))
+      .reduce((s: number, r: any) => s + Number(r.amount_approved || 0), 0);
+    const paidOnPo = linked.reduce((s: number, r: any) => s + Number(r.amount_paid || 0), 0);
+    
+    const totalOrdered = (p.items ?? []).reduce((s: number, i: any) => s + Number(i.qty || 0), 0);
+    const totalReceived = (p.items ?? []).reduce((s: number, i: any) => s + Number(i.qty_received || 0), 0);
+    const grnUtil = totalOrdered > 0 ? totalReceived / totalOrdered : 0;
+    const billedUtil = Number(p.total_value) > 0 ? billed / Number(p.total_value) : 0;
+    const paidUtil = Number(p.total_value) > 0 ? paidOnPo / Number(p.total_value) : 0;
+    
+    const isOverdue =
+      p.expected_delivery_date &&
+      new Date(p.expected_delivery_date).getTime() < todayTimestamp &&
+      p.receive_status !== "received";
+
+    return {
+      ...p,
+      billed,
+      paidOnPo,
+      totalOrdered,
+      totalReceived,
+      grnUtil,
+      billedUtil,
+      paidUtil,
+      isOverdue,
+    };
+  });
 
   const reqs: any[] = reqRes.data ?? [];
   const pays: any[] = payments ?? [];
@@ -432,6 +494,148 @@ export default async function DashboardPage({
           </table>
         </div>
       </div>
+
+      {/* Row 3.5: Purchase Order 3-Way Match Matrix (Physical vs Billed vs Paid) */}
+      <div className="bento-card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5decb] bg-[#fbf9f4] px-6 py-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-[#14261c] flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-[#1e3e30]" />
+                Purchase Orders — 3-Way Match & Fulfillment Matrix
+              </h2>
+              {poRows.some((p: any) => p.isOverdue) && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#fecaca] bg-[#fee2e2] px-2.5 py-0.5 text-[11px] font-extrabold text-[#991b1b]">
+                  ⚠️ {poRows.filter((p: any) => p.isOverdue).length} Delivery Overdue
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-[#536658] mt-0.5">
+              Dual-stage fulfillment tracking: Physical Goods Receipt (GRN) vs Invoiced (Billed) vs Bank Disbursement
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+            <span className="rounded-xl border border-[#e5decb] bg-white px-3 py-1 text-[#14261c]">
+              Orders: <strong>{poRows.length}</strong>
+            </span>
+            <span className="rounded-xl border border-[#e5decb] bg-white px-3 py-1 text-[#166534]">
+              Total: <strong>{inr(poRows.reduce((s: number, p: any) => s + Number(p.total_value || 0), 0), { compact: true })}</strong>
+            </span>
+            <span className="rounded-xl border border-[#e5decb] bg-white px-3 py-1 text-[#0369a1]">
+              Billed: <strong>{inr(poRows.reduce((s: number, p: any) => s + Number(p.billed || 0), 0), { compact: true })}</strong>
+            </span>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[780px] text-sm">
+            <thead>
+              <tr className="border-b border-[#e5decb] bg-[#fbf9f4] text-left text-xs font-bold uppercase tracking-wider text-[#415546]">
+                <th className="px-5 py-3">PO Number</th>
+                <th className="px-5 py-3">Vendor & Plant</th>
+                <th className="px-5 py-3">Delivery Due</th>
+                <th className="px-5 py-3 text-right">Order Value</th>
+                <th className="w-[18%] px-5 py-3">Physical (GRN)</th>
+                <th className="w-[18%] px-5 py-3">Billed (Invoiced)</th>
+                <th className="px-5 py-3 text-right">Paid Out</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e5decb]">
+              {poRows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-xs text-[#536658]">
+                    No active purchase orders issued yet.{" "}
+                    <Link href="/finance/purchase-orders" className="text-[#1e3e30] font-bold underline">
+                      View or draft a Purchase Order
+                    </Link>{" "}
+                    to see live 3-Way Match tracking here.
+                  </td>
+                </tr>
+              ) : (
+                poRows.map((p: any) => {
+                  return (
+                    <tr key={p.id} className="hover:bg-[#fbf9f4] transition-colors">
+                      <td className="px-5 py-3.5">
+                        <Link href={`/finance/purchase-orders/${p.id}`} className="font-mono font-bold text-[#1e3e30] hover:underline">
+                          {p.po_number}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="font-bold text-[#14261c]">{p.vendor?.name}</div>
+                        <div className="text-[11px] text-[#536658]">{p.destination_plant ?? "Hyderabad Plant"}</div>
+                      </td>
+                      <td className="px-5 py-3.5 text-xs">
+                        {p.expected_delivery_date ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-[#14261c]">{fmtDate(p.expected_delivery_date)}</span>
+                            {p.isOverdue && (
+                              <span className="text-[10px] font-bold bg-[#fee2e2] text-[#991b1b] px-1.5 py-0.5 rounded border border-[#fecaca]">
+                                Overdue
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[#7a8d80]">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-right tabular-nums text-[#14261c] font-bold">
+                        {fmtMoney(p.total_value, p.currency, { compact: true })}
+                      </td>
+                      
+                      {/* Physical Progress (GRN) */}
+                      <td className="px-5 py-3.5">
+                        {p.totalOrdered > 0 ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[11px] font-bold">
+                              <span className="text-[#0369a1]">
+                                {p.totalReceived} / {p.totalOrdered} items
+                              </span>
+                              <span className="text-[#536658]">{Math.round(p.grnUtil * 100)}%</span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-[#e0f2fe] border border-[#bae6fd]">
+                              <div
+                                className="h-2 rounded-full bg-gradient-to-r from-[#0284c7] to-[#0369a1] transition-all duration-500"
+                                style={{ width: `${Math.min(p.grnUtil * 100, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-[#7a8d80] italic">No item count</span>
+                        )}
+                      </td>
+
+                      {/* Financial Invoiced (Billed) Progress */}
+                      <td className="px-5 py-3.5">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[11px] font-bold">
+                            <span className="text-[#14261c]">{fmtMoney(p.billed, p.currency, { compact: true })}</span>
+                            <span className={p.billedUtil > 1 ? "text-red-600" : "text-[#536658]"}>
+                              {Math.round(p.billedUtil * 100)}%
+                            </span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-[#f0ebd9] border border-[#e5decb]">
+                            <div
+                              className="h-2 rounded-full transition-all duration-500"
+                              style={{
+                                width: `${Math.min(p.billedUtil * 100, 100)}%`,
+                                background: p.billedUtil > 1 ? "#dc2626" : "linear-gradient(90deg, #1e3e30, #2d5a44)",
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-3.5 text-right font-bold tabular-nums text-[#166534]">
+                        {fmtMoney(p.paidOnPo, p.currency, { compact: true })}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
       {/* Row 4: Run-rate & Vendor Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

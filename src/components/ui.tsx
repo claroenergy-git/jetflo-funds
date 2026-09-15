@@ -1,4 +1,4 @@
-import { STATUS_LABEL, STATUS_STYLE, type Status } from "@/lib/types";
+import { STATUS_LABEL, STATUS_STYLE, type Status, PO_STATUS_LABEL, PO_STATUS_STYLE, type PoStatus } from "@/lib/types";
 
 export function Card({
   children,
@@ -30,6 +30,17 @@ export function StatusChip({ status }: { status: Status }) {
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
       {STATUS_LABEL[status]}
+    </span>
+  );
+}
+
+export function PoStatusChip({ status }: { status: PoStatus }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide shadow-2xs ${PO_STATUS_STYLE[status]}`}
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
+      {PO_STATUS_LABEL[status]}
     </span>
   );
 }

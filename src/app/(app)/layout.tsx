@@ -18,6 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         ? [
             { href: "/finance/queue", label: "Approval Queue" },
             { href: "/finance/payments", label: "Record Payments" },
+            { href: "/finance/purchase-orders", label: "Purchase Orders" },
             { href: "/requests", label: "All Requests" },
             { href: "/dashboard", label: "Executive Dashboard" },
             { href: "/finance/vendors", label: "Vendors" },
@@ -25,26 +26,27 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         : [
             { href: "/dashboard", label: "Executive Dashboard" },
             { href: "/requests", label: "All Requests" },
+            { href: "/finance/purchase-orders", label: "Purchase Orders" },
             { href: "/settings", label: "Governance Limits" },
           ];
 
   return (
-    <div className="min-h-screen relative bg-[#f7f4ed] text-[#14261c]">
+    <div className="h-screen flex flex-col bg-[#f7f4ed] text-[#14261c] overflow-hidden">
       {/* Radiant Background Soft Glowing Auras */}
-      <div className="pointer-events-none fixed -top-40 -left-40 h-[650px] w-[650px] rounded-full bg-[#1e3e30]/05 blur-[140px]" />
-      <div className="pointer-events-none fixed -bottom-40 -right-40 h-[650px] w-[650px] rounded-full bg-[#d97706]/05 blur-[140px]" />
-      <div className="pointer-events-none fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[750px] w-[750px] rounded-full bg-[#2d5a44]/04 blur-[160px]" />
-      <div className="pointer-events-none fixed inset-0 bg-grid-dots opacity-50" />
+      <div className="pointer-events-none fixed -top-40 -left-40 h-[650px] w-[650px] rounded-full bg-[#1e3e30]/05 blur-[140px] print:hidden" />
+      <div className="pointer-events-none fixed -bottom-40 -right-40 h-[650px] w-[650px] rounded-full bg-[#d97706]/05 blur-[140px] print:hidden" />
+      <div className="pointer-events-none fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[750px] w-[750px] rounded-full bg-[#2d5a44]/04 blur-[160px] print:hidden" />
+      <div className="pointer-events-none fixed inset-0 bg-grid-dots opacity-50 print:hidden" />
 
       {/* Ambient Background Typographic Watermark */}
-      <div className="pointer-events-none fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center select-none z-0">
+      <div className="pointer-events-none fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center select-none z-0 print:hidden">
         <span className="text-[16vw] font-black uppercase tracking-[0.22em] text-[#1e3e30]/[0.025] font-sans leading-none pl-6">
           JETFLO
         </span>
       </div>
 
-      {/* Sticky Header & Tabs */}
-      <header className="sticky top-0 z-40 border-b border-[#e5decb] bg-white/90 backdrop-blur-xl shadow-[0_4px_20px_-5px_rgba(26,40,31,0.06)]">
+      {/* Anchored Header & Tabs */}
+      <header className="shrink-0 z-40 border-b border-[#e5decb] bg-white/95 backdrop-blur-xl shadow-[0_4px_20px_-5px_rgba(26,40,31,0.06)] print:hidden">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 py-3">
           {/* High-Visibility Logo with Circular Badge */}
           <Link href="/" className="flex items-center gap-3.5 group">
@@ -113,7 +115,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </nav>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">{children}</main>
+      <main className="flex-1 overflow-y-auto no-scrollbar relative z-10 mx-auto w-full max-w-6xl px-4 sm:px-6 py-6 sm:py-8">{children}</main>
     </div>
   );
 }

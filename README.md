@@ -4,16 +4,20 @@ Fund request, approval and spend-visibility web app for **JetFlo** (manufacturin
 subsidiary of Claro Energy Limited). Replaces the WhatsApp request/approval flow with
 an auditable workflow across three roles.
 
-## Roles & demo logins
+## Roles & logins
 
-Password for all demo users: **JetFlo@2026**
+Password for all users: **JetFlo@2026**
 
 | Role | Login | Can do |
 |---|---|---|
-| Requester (ground team) | `ground@jetflo.in` | Raise/edit/submit requests, upload quotations, close paid requests with final invoice |
-| Finance (Claro, Mumbai) | `finance@claroenergy.in` | Approve / partial / reject / send back, record fund transfers, manage vendors & budget heads |
-| Finance — 2nd approver | `finance2@claroenergy.in` | Same as finance; needed for approvals above ₹5,00,000 |
-| Leadership | `leadership@claroenergy.in` | Read-only dashboard + all requests |
+| Requester (ground team) | `raju.r@claromfg.com` | Raise/edit/submit requests, upload quotations, close paid requests with final invoice |
+| Finance (Claro, Mumbai) | `accounts@claroenergy.in` | Approve / partial / reject / send back, record fund transfers, manage vendors & budget heads, draft/issue Purchase Orders |
+| Finance — 2nd approver | `gaurav@claroenergy.in` | Same as finance; needed for approvals above ₹5,00,000 (or PO issuance above ₹10,00,000) |
+| Leadership | `kartik@claroenergy.in`, `soumitra@claroenergy.in`, or `yash.parashar@claroenergy.in` | Read-only dashboard + all requests + governance threshold settings |
+
+> The four `ground@jetflo.in` / `finance@claroenergy.in` / `finance2@claroenergy.in` /
+> `leadership@claroenergy.in` accounts previously listed here were unused dummy accounts
+> (zero linked requests/payments/vendors) and have been removed — use the accounts above.
 
 ## Workflow (enforced by the database, not just the UI)
 

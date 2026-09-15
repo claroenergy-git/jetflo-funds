@@ -9,10 +9,12 @@ export function GovernanceSettingsForm({
   secondApproverAbove,
   quotationMandatoryAbove,
   duplicateWindowDays,
+  poSecondApproverAbove,
 }: {
   secondApproverAbove: number;
   quotationMandatoryAbove: number;
   duplicateWindowDays: number;
+  poSecondApproverAbove: number;
 }) {
   const [state, formAction, isPending] = useActionState<ActionResult | null, FormData>(
     updateGovernanceSettings,
@@ -22,6 +24,7 @@ export function GovernanceSettingsForm({
   const [threshold, setThreshold] = useState<number>(secondApproverAbove);
   const [quoteThreshold, setQuoteThreshold] = useState<number>(quotationMandatoryAbove);
   const [dupDays, setDupDays] = useState<number>(duplicateWindowDays);
+  const [poThreshold, setPoThreshold] = useState<number>(poSecondApproverAbove);
 
   return (
     <form action={formAction} className="space-y-6">
@@ -76,6 +79,58 @@ export function GovernanceSettingsForm({
               onClick={() => setThreshold(val)}
               className={`rounded-lg px-2.5 py-1 font-bold transition cursor-pointer ${
                 threshold === val
+                  ? "bg-[#1e3e30] text-white shadow-2xs"
+                  : "bg-white text-[#536658] hover:bg-[#f0ebd9] hover:text-[#14261c] border border-[#dcd4c0]"
+              }`}
+            >
+              {inr(val, { compact: true })}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Purchase Order Threshold */}
+      <div className="rounded-2xl border border-[#d8e8dc] bg-[#f4f9f5] p-5 relative overflow-hidden shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+          <div>
+            <label className={`${labelCls} text-[#1e3e30] font-bold flex items-center gap-2`}>
+              <span className="h-2 w-2 rounded-full bg-[#1e3e30]" />
+              Purchase Order Second-Approval Threshold
+            </label>
+            <p className="text-xs text-[#536658]">
+              A purchase order issued at or above this value requires a second, different finance user to approve it
+              before it becomes usable.
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="text-xs text-[#536658] uppercase font-bold">PO Trigger</span>
+            <div className="text-xl font-extrabold text-[#166534] tabular-nums">{inr(poThreshold, { compact: false })}</div>
+          </div>
+        </div>
+
+        <div className="relative mt-2">
+          <span className="absolute left-3.5 top-2.5 text-sm font-bold text-[#1e3e30]">₹</span>
+          <input
+            type="number"
+            name="po_second_approver_above"
+            value={poThreshold}
+            onChange={(e) => setPoThreshold(Number(e.target.value))}
+            required
+            min={0}
+            step={10000}
+            className={`${inputCls} pl-8 font-mono text-base font-bold text-[#14261c]`}
+          />
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-[#536658] font-bold">Quick Presets:</span>
+          {[500000, 1000000, 1500000, 2000000, 3000000, 5000000].map((val) => (
+            <button
+              key={val}
+              type="button"
+              onClick={() => setPoThreshold(val)}
+              className={`rounded-lg px-2.5 py-1 font-bold transition cursor-pointer ${
+                poThreshold === val
                   ? "bg-[#1e3e30] text-white shadow-2xs"
                   : "bg-white text-[#536658] hover:bg-[#f0ebd9] hover:text-[#14261c] border border-[#dcd4c0]"
               }`}

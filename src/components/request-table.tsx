@@ -18,17 +18,17 @@ export function RequestTable({ rows, showRequester = false }: { rows: any[]; sho
 
   return (
     <div className="bento-card overflow-hidden">
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[calc(100vh-295px)] overflow-y-auto no-scrollbar">
         <table className="w-full min-w-[760px] text-sm">
-          <thead>
-            <tr className="border-b border-[#e5decb] bg-[#fbf9f4] text-left text-xs font-bold uppercase tracking-wider text-[#415546]">
-              <th className="px-6 py-3.5">Request No & Details</th>
-              <th className="px-6 py-3.5">Classification</th>
-              <th className="px-6 py-3.5">Beneficiary / Vendor</th>
-              <th className="px-6 py-3.5 text-right">Requested</th>
-              <th className="px-6 py-3.5 text-right">Approved</th>
-              <th className="px-6 py-3.5">Status</th>
-              <th className="px-6 py-3.5 text-right">Aging / Date</th>
+          <thead className="sticky top-0 z-20">
+            <tr className="border-b border-[#e5decb] bg-[#fbf9f4] text-left text-xs font-bold uppercase tracking-wider text-[#415546] shadow-[0_1px_2px_rgba(20,38,28,0.05)]">
+              <th className="px-6 py-3.5 bg-[#fbf9f4]">Request No & Details</th>
+              <th className="px-6 py-3.5 bg-[#fbf9f4]">Classification</th>
+              <th className="px-6 py-3.5 bg-[#fbf9f4]">Beneficiary / Vendor</th>
+              <th className="px-6 py-3.5 text-right bg-[#fbf9f4]">Requested</th>
+              <th className="px-6 py-3.5 text-right bg-[#fbf9f4]">Approved</th>
+              <th className="px-6 py-3.5 bg-[#fbf9f4]">Status</th>
+              <th className="px-6 py-3.5 text-right bg-[#fbf9f4]">Aging / Date</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#e5decb]">

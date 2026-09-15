@@ -21,6 +21,7 @@ export default async function SettingsPage() {
   const secondApproverAbove = getSetting("second_approver_above", 500000);
   const quotationMandatoryAbove = getSetting("quotation_mandatory_above", 50000);
   const duplicateWindowDays = getSetting("duplicate_window_days", 7);
+  const poSecondApproverAbove = getSetting("po_second_approver_above", 1000000);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -49,6 +50,7 @@ export default async function SettingsPage() {
           secondApproverAbove={secondApproverAbove}
           quotationMandatoryAbove={quotationMandatoryAbove}
           duplicateWindowDays={duplicateWindowDays}
+          poSecondApproverAbove={poSecondApproverAbove}
         />
       </Card>
     </div>

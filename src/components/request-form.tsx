@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createRequest, updateDraft, type ActionResult } from "@/app/actions";
 import { inputCls, labelCls, btnPrimary, btnSecondary, Alert } from "@/components/ui";
 import { inr, fmtMoney, currencySymbol } from "@/lib/format";
+import type { PoPickerOption } from "@/lib/data";
 
 interface Option {
   id: string;
@@ -33,11 +34,13 @@ export function RequestForm({
   vendors,
   budgetHeads,
   priorRequests = [],
+  purchaseOrders = [],
   existing,
 }: {
   vendors: Option[];
   budgetHeads: Option[];
   priorRequests?: PriorRequest[];
+  purchaseOrders?: PoPickerOption[];
   existing?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }) {
   const router = useRouter();
@@ -88,6 +91,7 @@ export function RequestForm({
   const [vendorId, setVendorId] = useState<string>(String(dv("vendor_id", existing?.vendor?.id ?? existing?.vendor_id)));
   const [paymentType, setPaymentType] = useState<string>(existing?.payment_type ?? "advance");
   const [parentReqId, setParentReqId] = useState<string>(existing?.parent_request_id ?? "");
+  const [poId, setPoId] = useState<string>(existing?.po_id ?? "");
   const [currency, setCurrency] = useState<"INR" | "USD">(
     (existing?.currency || "INR").toUpperCase() === "USD" ? "USD" : "INR"
   );
@@ -163,6 +167,7 @@ export function RequestForm({
 
   // Vendor prior requests for against-balance linking
   const vendorPriorRequests = priorRequests.filter((pr) => pr.vendor_id === vendorId);
+  const vendorPurchaseOrders = purchaseOrders.filter((po) => po.vendor_id === vendorId);
 
   return (
     <form key={attempt} action={formAction} className="space-y-5">
@@ -375,6 +380,39 @@ export function RequestForm({
               <option value="other">Contract / Service Agreement</option>
             </select>
           </div>
+        )}
+      </div>
+
+      {/* Link to Purchase Order (supported for advance, against-invoice, and balance) */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className={labelCls}>
+            Link to Purchase Order {paymentType === "advance" ? "(Advance against PO)" : "(optional)"}
+          </label>
+          {poId && (
+            <span className="text-[11px] font-bold text-[#166534] bg-[#dcfce7] px-2 py-0.5 rounded-full border border-[#bbf7d0]">
+              ✓ PO Linked
+            </span>
+          )}
+        </div>
+        {vendorPurchaseOrders.length > 0 ? (
+          <>
+            <select name="po_id" className={inputCls} value={poId} onChange={(e) => setPoId(e.target.value)}>
+              <option value="">No purchase order (direct request)</option>
+              {vendorPurchaseOrders.map((po) => (
+                <option key={po.id} value={po.id}>
+                  {po.po_number} — {fmtMoney(po.remaining, po.currency)} remaining of {fmtMoney(po.total_value, po.currency)}
+                </option>
+              ))}
+            </select>
+            {paymentType === "advance" && poId && (
+              <p className="mt-1.5 text-[11px] font-medium text-[#1e3e30] bg-[#eef7f2] p-2 rounded-lg border border-[#cbe1d3]">
+                💡 <strong>Advance against PO:</strong> Funds disbursed will reserve this PO&apos;s value and settle against the final Tax Invoice.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-[#7a8d80] italic py-2">No open purchase order for this vendor.</p>
         )}
       </div>
 

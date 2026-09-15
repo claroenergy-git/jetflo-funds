@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import { getSupabase } from "@/lib/supabase/server";
-import { requireProfile, REQUEST_COLS, REQUEST_COLS_WITH_CURRENCY } from "@/lib/data";
+import { requireProfile, REQUEST_COLS, REQUEST_COLS_WITH_CURRENCY, getOpenPurchaseOrdersForPicker, type PoPickerOption } from "@/lib/data";
 import { Card, StatusChip, Alert } from "@/components/ui";
 import { inr, fmtMoney, fmtDate, fmtDateTime } from "@/lib/format";
 import { CATEGORY_LABEL, STATUS_LABEL, type Status } from "@/lib/types";
+import Link from "next/link";
 import { DecisionPanel, PaymentForm, CloseForm } from "@/components/action-panels";
 import { RequestForm } from "@/components/request-form";
 import { ChangeCurrencyModal } from "@/components/change-currency-modal";
+import { IssuePoFromRequestButton } from "@/components/po-actions";
 import { getVendorDocuments } from "@/lib/vendor-docs";
 
 const ACTION_LABEL: Record<string, string> = {
@@ -37,11 +39,12 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   }
   if (!r) notFound();
 
-  const [{ data: attachments }, { data: payments }, { data: audit }, { data: users }] = await Promise.all([
+  const [{ data: attachments }, { data: payments }, { data: audit }, { data: users }, { data: sourcedPo }] = await Promise.all([
     supabase.from("jetflo_attachments").select("*").eq("request_id", id).order("created_at"),
     supabase.from("jetflo_payments").select("*").eq("request_id", id).order("paid_on"),
     supabase.from("jetflo_audit_log").select("*").eq("request_id", id).order("created_at"),
     supabase.from("jetflo_users").select("id, name"),
+    supabase.from("jetflo_purchase_orders").select("id, po_number, status").eq("source_request_id", id).maybeSingle(),
   ]);
   const userName = (uid: string | null) => users?.find((u) => u.id === uid)?.name ?? "System";
 
@@ -64,18 +67,21 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   let vendors: { id: string; name: string }[] = [];
   let heads: { id: string; category: string; sub_head: string }[] = [];
   let priorRequests: any[] = [];
+  let purchaseOrders: PoPickerOption[] = [];
   if (editable) {
     let vRes: any = await supabase.from("jetflo_vendors").select("id, name, is_foreign, country").eq("active", true).order("name");
     if (vRes.error) {
       vRes = await supabase.from("jetflo_vendors").select("id, name").eq("active", true).order("name");
     }
-    const [h, pr] = await Promise.all([
+    const [h, pr, pos] = await Promise.all([
       supabase.from("jetflo_budget_heads").select("id, category, sub_head").eq("active", true).order("sub_head"),
       supabase.from("jetflo_fund_requests").select("id, request_no, vendor_id, amount_approved, amount_requested, item_description, status").not("status", "in", "(draft,rejected)").order("created_at", { ascending: false }),
+      getOpenPurchaseOrdersForPicker(supabase),
     ]);
     vendors = vRes.data ?? [];
     heads = h.data ?? [];
     priorRequests = pr.data ?? [];
+    purchaseOrders = pos;
   }
 
   return (
@@ -213,6 +219,16 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               ["Requested By", r.requester?.name],
               ...(r.approver ? [["1st Approver", r.approver.name]] : []),
               ...(r.second_approver ? [["2nd Approver", r.second_approver.name]] : []),
+              ...(r.po
+                ? [
+                    [
+                      "Purchase Order",
+                      <Link key="po-link" href={`/finance/purchase-orders/${r.po.id}`} className="text-[#1e3e30] hover:underline">
+                        {r.po.po_number ?? "Draft PO"} ↗
+                      </Link>,
+                    ],
+                  ]
+                : []),
             ].map(([k, v]) => (
               <div key={String(k)} className="rounded-xl bg-[#fbf9f4] p-3 border border-[#e5decb]">
                 <dt className="text-[10px] font-bold uppercase tracking-wider text-[#536658]">{k}</dt>
@@ -309,6 +325,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               vendors={vendors}
               budgetHeads={heads}
               priorRequests={priorRequests}
+              purchaseOrders={purchaseOrders}
               existing={r}
             />
           </Card>
@@ -355,6 +372,38 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               status={status}
               currency={r.currency || "INR"}
             />
+          </Card>
+        )}
+
+        {/* Purchase Order — auto-generated draft (against-invoice requests) or manual entry point */}
+        {isFinance && sourcedPo && (
+          <Card variant={sourcedPo.status === "draft" ? "amber" : "default"}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-[#14261c]">Purchase Order</h2>
+                <p className="text-xs text-[#536658] mt-0.5">
+                  {sourcedPo.status === "draft"
+                    ? "Auto-generated when this request was submitted — review the line item and issue it."
+                    : "This request's purchase order has been issued."}
+                </p>
+              </div>
+              <Link href={`/finance/purchase-orders/${sourcedPo.id}`} className="px-3.5 py-1.5 rounded-lg bg-[#1e3e30] text-white text-xs font-bold hover:bg-[#142d21] transition shrink-0 shadow-2xs">
+                {sourcedPo.po_number ?? "Review Draft"} ↗
+              </Link>
+            </div>
+          </Card>
+        )}
+        {isFinance && !sourcedPo && ["approved", "partially_approved"].includes(status) && !r.po_id && (
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-[#14261c]">Purchase Order</h2>
+                <p className="text-xs text-[#536658] mt-0.5">
+                  Generate a draft purchase order pre-filled from this request's vendor and item.
+                </p>
+              </div>
+              <IssuePoFromRequestButton requestId={r.id} />
+            </div>
           </Card>
         )}
 
