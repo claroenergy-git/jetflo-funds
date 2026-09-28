@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase/server";
-import { requireProfile, PO_COLS, PO_COLS_LEGACY } from "@/lib/data";
+import { requireProfile, getPurchaseOrderById } from "@/lib/data";
 import { generatePurchaseOrderPdf } from "@/lib/po-pdf";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -10,24 +9,19 @@ export async function GET(
   props: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireProfile();
+    const profile = await requireProfile();
     const { id } = await props.params;
 
     if (!id) {
       return NextResponse.json({ error: "Missing purchase order id" }, { status: 400 });
     }
 
-    const supabase = await getSupabase();
-    let poRes = await supabase.from("jetflo_purchase_orders").select(PO_COLS).eq("id", id).single();
-    if (poRes.error) {
-      poRes = await supabase.from("jetflo_purchase_orders").select(PO_COLS_LEGACY).eq("id", id).single();
-    }
+    const po: any = await getPurchaseOrderById(profile, id);
 
-    if (!poRes.data) {
+    if (!po) {
       return NextResponse.json({ error: "Purchase order not found" }, { status: 404 });
     }
 
-    const po = poRes.data as any;
     const items = (po.items ?? []).sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
     const pdfBuffer = generatePurchaseOrderPdf(po, items);

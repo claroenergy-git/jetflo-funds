@@ -1,7 +1,7 @@
 "use server";
 
 import { getSupabase, getSupabaseAdmin } from "@/lib/supabase/server";
-import { createClient } from "@supabase/supabase-js";
+import { adminQuery } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { notify, siteUrl } from "@/lib/mailer";
@@ -610,12 +610,20 @@ export async function recordPayment(_prev: ActionResult | null, formData: FormDa
   });
   if (error) return { ok: false, error: error.message.replace(/^.*?exception:\s*/i, "") };
 
-  const { data: req } = await admin
-    .from("jetflo_fund_requests")
-    .select("request_no, currency, requester:jetflo_users!jetflo_fund_requests_requester_id_fkey ( email )")
-    .eq("id", requestId)
-    .single();
-  const requesterEmail = (req as any)?.requester?.email as string | undefined;
+  const reqRows = await adminQuery<{
+    request_no: string;
+    currency: string;
+    requester: { email: string } | null;
+  }>(
+    `SELECT fr.request_no, fr.currency,
+       CASE WHEN u.id IS NOT NULL THEN json_build_object('email', u.email) END AS requester
+     FROM jetflo_fund_requests fr
+     LEFT JOIN jetflo_users u ON u.id = fr.requester_id
+     WHERE fr.id = $1`,
+    [requestId]
+  );
+  const req = reqRows[0];
+  const requesterEmail = req?.requester?.email;
   if (requesterEmail) {
     const sym = req?.currency === "USD" ? "$" : "₹";
     notify({
@@ -798,14 +806,16 @@ export async function onboardVendor(_prev: ActionResult | null, formData: FormDa
   if (bankProof && bankProof.size > 0) {
     const safe = bankProof.name.replace(/[^\w.\-]+/g, "_");
     const path = `vendor-docs/${inserted.id}/${bankDocType}-${Date.now()}-${safe}`;
-    await admin.storage.from("jetflo-docs").upload(path, bankProof, { upsert: true });
+    const buffer = Buffer.from(await bankProof.arrayBuffer());
+    await admin.storage.from("jetflo-docs").upload(path, buffer, { upsert: true });
   }
 
   const gstCert = formData.get("gst_cert") as File | null;
   if (gstCert && gstCert.size > 0) {
     const safe = gstCert.name.replace(/[^\w.\-]+/g, "_");
     const path = `vendor-docs/${inserted.id}/tax_cert-${Date.now()}-${safe}`;
-    await admin.storage.from("jetflo-docs").upload(path, gstCert, { upsert: true });
+    const buffer = Buffer.from(await gstCert.arrayBuffer());
+    await admin.storage.from("jetflo-docs").upload(path, buffer, { upsert: true });
   }
 
   revalidatePath("/", "layout");
@@ -1020,10 +1030,7 @@ export async function updateGovernanceSettings(_prev: ActionResult | null, formD
   }
 
   // Use service role admin client to guarantee atomic settings update
-  const { createClient } = await import("@supabase/supabase-js");
-  const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const admin = getSupabaseAdmin();
 
   for (const item of updates) {
     // upsert, not update: a setting row that doesn't exist yet must not silently no-op

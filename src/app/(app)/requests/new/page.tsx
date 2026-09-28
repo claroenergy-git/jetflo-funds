@@ -1,5 +1,6 @@
 import { getSupabase } from "@/lib/supabase/server";
 import { requireProfile, getOpenPurchaseOrdersForPicker } from "@/lib/data";
+import { withUserContext } from "@/lib/db";
 import { PageTitle, Card, Alert } from "@/components/ui";
 import { RequestForm } from "@/components/request-form";
 
@@ -24,22 +25,33 @@ export default async function NewRequestPage({
   const [{ data: heads }, { data: priorRequests }, purchaseOrders] = await Promise.all([
     supabase.from("jetflo_budget_heads").select("id, category, sub_head").eq("active", true).order("sub_head"),
     supabase.from("jetflo_fund_requests").select("id, request_no, vendor_id, amount_approved, amount_requested, item_description, status").not("status", "in", "(draft,rejected)").order("created_at", { ascending: false }),
-    getOpenPurchaseOrdersForPicker(supabase),
+    getOpenPurchaseOrdersForPicker(profile),
   ]);
   const vendors = vendorsRes.data ?? [];
 
   let prefill: any = null;
   if (po_id) {
-    const { data: po } = await supabase
-      .from("jetflo_purchase_orders")
-      .select(`
-        id, po_number, vendor_id, budget_head_id, category, currency, total_value,
-        budget_head:jetflo_budget_heads ( sub_head ),
-        vendor:jetflo_vendors ( id, name ),
-        items:jetflo_purchase_order_items ( item_description, product_sku, qty, unit_rate, tax_percent )
-      `)
-      .eq("id", po_id)
-      .single();
+    const po = await withUserContext(profile.id, async (client) => {
+      const res = await client.query(
+        `SELECT po.id, po.po_number, po.vendor_id, po.budget_head_id, po.category, po.currency, po.total_value,
+           json_build_object('sub_head', bh.sub_head) AS budget_head,
+           json_build_object('id', v.id, 'name', v.name) AS vendor,
+           COALESCE(
+             (SELECT json_agg(json_build_object(
+               'item_description', i.item_description, 'product_sku', i.product_sku,
+               'qty', i.qty, 'unit_rate', i.unit_rate, 'tax_percent', i.tax_percent
+             ) ORDER BY i.sort_order)
+             FROM jetflo_purchase_order_items i WHERE i.purchase_order_id = po.id),
+             '[]'
+           ) AS items
+         FROM jetflo_purchase_orders po
+         LEFT JOIN jetflo_budget_heads bh ON bh.id = po.budget_head_id
+         LEFT JOIN jetflo_vendors v ON v.id = po.vendor_id
+         WHERE po.id = $1`,
+        [po_id]
+      );
+      return res.rows[0] ?? null;
+    });
 
     if (po) {
       const firstItem = (po as any).items?.[0];

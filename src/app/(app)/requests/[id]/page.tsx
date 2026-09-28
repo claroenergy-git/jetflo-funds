@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSupabase } from "@/lib/supabase/server";
-import { requireProfile, REQUEST_COLS, REQUEST_COLS_WITH_CURRENCY, getOpenPurchaseOrdersForPicker, type PoPickerOption } from "@/lib/data";
+import { requireProfile, getFundRequestById, getOpenPurchaseOrdersForPicker, type PoPickerOption } from "@/lib/data";
 import { Card, StatusChip, Alert } from "@/components/ui";
 import { inr, fmtMoney, fmtDate, fmtDateTime } from "@/lib/format";
 import { CATEGORY_LABEL, STATUS_LABEL, type Status } from "@/lib/types";
@@ -31,12 +31,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const profile = await requireProfile();
   const supabase = await getSupabase();
 
-  const resWithCurrency = await supabase.from("jetflo_fund_requests").select(REQUEST_COLS_WITH_CURRENCY).eq("id", id).single();
-  let r: any = resWithCurrency.data;
-  if (resWithCurrency.error) {
-    const fallbackRes = await supabase.from("jetflo_fund_requests").select(REQUEST_COLS).eq("id", id).single();
-    r = fallbackRes.data;
-  }
+  const r: any = await getFundRequestById(profile, id);
   if (!r) notFound();
 
   const [{ data: attachments }, { data: payments }, { data: audit }, { data: users }, { data: sourcedPo }] = await Promise.all([
@@ -76,7 +71,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
     const [h, pr, pos] = await Promise.all([
       supabase.from("jetflo_budget_heads").select("id, category, sub_head").eq("active", true).order("sub_head"),
       supabase.from("jetflo_fund_requests").select("id, request_no, vendor_id, amount_approved, amount_requested, item_description, status").not("status", "in", "(draft,rejected)").order("created_at", { ascending: false }),
-      getOpenPurchaseOrdersForPicker(supabase),
+      getOpenPurchaseOrdersForPicker(profile),
     ]);
     vendors = vRes.data ?? [];
     heads = h.data ?? [];

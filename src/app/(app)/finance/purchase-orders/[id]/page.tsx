@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSupabase } from "@/lib/supabase/server";
-import { requireProfile, PO_COLS, PO_COLS_LEGACY } from "@/lib/data";
+import { requireProfile, getPurchaseOrderById } from "@/lib/data";
 import { Card, PageTitle, PoStatusChip, StatusChip } from "@/components/ui";
 import { fmtMoney, fmtDate, fmtDateTime, daysSince } from "@/lib/format";
 import {
@@ -33,12 +33,8 @@ export default async function PurchaseOrderDetail({ params }: { params: Promise<
   const isFinance = profile.role === "finance";
   const supabase = await getSupabase();
 
-  let poRes = await supabase.from("jetflo_purchase_orders").select(PO_COLS).eq("id", id).single();
-  if (poRes.error) {
-    poRes = await supabase.from("jetflo_purchase_orders").select(PO_COLS_LEGACY).eq("id", id).single();
-  }
-  if (!poRes.data) notFound();
-  const p = poRes.data as any;
+  const p: any = await getPurchaseOrderById(profile, id);
+  if (!p) notFound();
   const status = p.status as PoStatus;
   const isDraft = status === "draft";
   const items = (p.items ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order);

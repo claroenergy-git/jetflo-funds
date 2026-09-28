@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { getSupabase } from "@/lib/supabase/server";
-import { requireProfile, REQUEST_COLS, REQUEST_COLS_LEGACY } from "@/lib/data";
+import { requireProfile, getFundRequests } from "@/lib/data";
 import { PageTitle } from "@/components/ui";
 import { RequestTable } from "@/components/request-table";
 import { RequestFilters } from "@/components/request-filters";
@@ -12,22 +11,11 @@ export default async function RequestsPage({
 }) {
   const { status, category } = await searchParams;
   const profile = await requireProfile();
-  const supabase = await getSupabase();
 
-  let q = supabase.from("jetflo_fund_requests").select(REQUEST_COLS).order("created_at", { ascending: false });
-  if (status) q = q.eq("status", status);
-  if (category) q = q.eq("category", category);
-  let res: any = await q;
-  let rows: any[] = res.data ?? [];
-
-  if (res.error) {
-    console.error("Requests query failed with REQUEST_COLS, retrying with legacy cols:", res.error);
-    let qFallback = supabase.from("jetflo_fund_requests").select(REQUEST_COLS_LEGACY).order("created_at", { ascending: false });
-    if (status) qFallback = qFallback.eq("status", status);
-    if (category) qFallback = qFallback.eq("category", category);
-    const fbRes: any = await qFallback;
-    rows = fbRes.data ?? [];
-  }
+  const allRows: any[] = await getFundRequests(profile, { orderBy: "fr.created_at DESC" });
+  const rows = allRows.filter(
+    (r) => (!status || r.status === status) && (!category || r.category === category)
+  );
 
   const isDraft = status === "draft";
   const isAllStatuses = !status || status !== "draft";

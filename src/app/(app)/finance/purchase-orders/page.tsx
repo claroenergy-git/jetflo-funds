@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSupabase } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/data";
+import { requireProfile, getPurchaseOrders } from "@/lib/data";
 import { PageTitle, Card, PoStatusChip } from "@/components/ui";
 import { NewBlankPoForm } from "@/components/po-actions";
 import { fmtMoney, fmtDate, daysSince } from "@/lib/format";
@@ -28,20 +28,11 @@ export default async function PurchaseOrdersPage({
   const isFinance = profile.role === "finance";
   const supabase = await getSupabase();
 
-  const posRes = await supabase
-    .from("jetflo_purchase_orders")
-    .select(
-      `id, po_number, category, currency, total_value, status, created_at,
-       vendor:jetflo_vendors ( id, name ),
-       budget_head:jetflo_budget_heads ( id, sub_head )`
-    )
-    .order("created_at", { ascending: false });
-
-  const pos = posRes.data;
-  const rows = ((pos ?? []) as any[]).filter((p) => !status || status === "all" || p.status === status);
+  const pos = await getPurchaseOrders(profile, { orderBy: "po.created_at DESC" });
+  const rows = (pos as any[]).filter((p) => !status || status === "all" || p.status === status);
 
   const counts = new Map<string, number>();
-  for (const p of pos ?? []) counts.set(p.status, (counts.get(p.status) ?? 0) + 1);
+  for (const p of pos as any[]) counts.set(p.status, (counts.get(p.status) ?? 0) + 1);
 
   let vendors: { id: string; name: string; category: string }[] = [];
   let budgetHeads: { id: string; category: string; sub_head: string }[] = [];

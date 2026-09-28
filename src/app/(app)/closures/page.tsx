@@ -1,18 +1,15 @@
-import { getSupabase } from "@/lib/supabase/server";
-import { requireProfile, REQUEST_COLS } from "@/lib/data";
+import { requireProfile, getFundRequests } from "@/lib/data";
 import { PageTitle, Alert } from "@/components/ui";
 import { RequestTable } from "@/components/request-table";
 
 export default async function ClosuresPage() {
   const profile = await requireProfile();
   if (profile.role !== "requester") return <Alert kind="error">Ground team only.</Alert>;
-  const supabase = await getSupabase();
 
-  const { data: rows } = await supabase
-    .from("jetflo_fund_requests")
-    .select(REQUEST_COLS)
-    .eq("status", "paid")
-    .order("first_paid_at", { ascending: true });
+  const rows = await getFundRequests(profile, {
+    statusIn: ["paid"],
+    orderBy: "fr.first_paid_at ASC",
+  });
 
   return (
     <div>

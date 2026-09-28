@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSupabase } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/data";
+import { requireProfile, getFundRequests, getPurchaseOrders } from "@/lib/data";
+import { withUserContext } from "@/lib/db";
 import { PageTitle, Card } from "@/components/ui";
 import { inr, fmtMoney, fmtDate, daysSince, monthKey, agingBucket } from "@/lib/format";
 import { MonthlyBars, HBarList, Kpi, C_CAPEX, C_RM } from "@/components/dashboard-charts";
@@ -17,63 +18,32 @@ export default async function DashboardPage({
   const profile = await requireProfile();
   const supabase = await getSupabase();
 
-  let reqRes = await supabase
-    .from("jetflo_fund_requests")
-    .select(
-      `id, request_no, category, item_description, product_sku,
-       currency, currency_amended, currency_amended_at, previous_currency, previous_amount, currency_amendment_reason,
-       amount_requested, amount_approved,
-       amount_paid, status, urgency, submitted_at, decided_at, first_paid_at, closed_at, created_at,
-       budget_head:jetflo_budget_heads ( sub_head, sanctioned_amount ),
-       vendor:jetflo_vendors ( name ),
-       requester:jetflo_users!jetflo_fund_requests_requester_id_fkey ( name )`
+  const reqData: any[] = await getFundRequests(profile, { orderBy: "fr.created_at DESC" });
+
+  const paymentsData: any[] = await withUserContext(profile.id, async (client) => {
+    const res = await client.query(
+      `SELECT p.id, p.amount_paid, p.paid_on, p.mode, p.utr_ref,
+         json_build_object(
+           'request_no', fr.request_no, 'category', fr.category, 'product_sku', fr.product_sku,
+           'vendor', CASE WHEN v.id IS NOT NULL THEN json_build_object('name', v.name) END,
+           'budget_head', CASE WHEN bh.id IS NOT NULL THEN json_build_object('sub_head', bh.sub_head) END
+         ) AS request
+       FROM jetflo_payments p
+       LEFT JOIN jetflo_fund_requests fr ON fr.id = p.request_id
+       LEFT JOIN jetflo_vendors v ON v.id = fr.vendor_id
+       LEFT JOIN jetflo_budget_heads bh ON bh.id = fr.budget_head_id
+       ORDER BY p.paid_on`
     );
+    return res.rows;
+  });
 
-  if (reqRes.error) {
-    reqRes = await supabase
-      .from("jetflo_fund_requests")
-      .select(
-        `id, request_no, category, item_description, product_sku, amount_requested, amount_approved,
-         amount_paid, status, urgency, submitted_at, decided_at, first_paid_at, closed_at, created_at,
-         budget_head:jetflo_budget_heads ( sub_head, sanctioned_amount ),
-         vendor:jetflo_vendors ( name ),
-         requester:jetflo_users!jetflo_fund_requests_requester_id_fkey ( name )`
-      );
-  }
-
-  const [{ data: payments }, { data: heads }, { data: settings }, { data: pos }] = await Promise.all([
-    supabase
-      .from("jetflo_payments")
-      .select(
-        `id, amount_paid, paid_on, mode, utr_ref,
-         request:jetflo_fund_requests ( request_no, category, product_sku,
-           vendor:jetflo_vendors ( name ), budget_head:jetflo_budget_heads ( sub_head ) )`
-      )
-      .order("paid_on"),
+  const [{ data: heads }, { data: settings }] = await Promise.all([
     supabase.from("jetflo_budget_heads").select("*").eq("category", "capex").eq("active", true),
     supabase.from("jetflo_settings").select("key, value"),
-    supabase
-      .from("jetflo_purchase_orders")
-      .select(`
-        id, po_number, currency, total_value, status, created_at, expected_delivery_date, destination_plant, receive_status,
-        vendor:jetflo_vendors ( name ),
-        items:jetflo_purchase_order_items ( id, qty, qty_received )
-      `)
-      .neq("status", "draft")
-      .neq("status", "cancelled")
-      .order("created_at", { ascending: false }),
   ]);
 
-  let posData: any[] = (pos ?? []) as any[];
-  if (!pos || (pos as any).error) {
-    const fallbackRes = await supabase
-      .from("jetflo_purchase_orders")
-      .select("id, po_number, currency, total_value, status, vendor:jetflo_vendors ( name )")
-      .neq("status", "draft")
-      .neq("status", "cancelled")
-      .order("created_at", { ascending: false });
-    posData = (fallbackRes.data ?? []) as any[];
-  }
+  const allPos: any[] = await getPurchaseOrders(profile, { orderBy: "po.created_at DESC" });
+  const posData: any[] = allPos.filter((p) => p.status !== "draft" && p.status !== "cancelled");
 
   const poIds = (posData ?? []).map((p: any) => p.id);
   const { data: poLinkedRequests } = poIds.length
@@ -116,8 +86,8 @@ export default async function DashboardPage({
     };
   });
 
-  const reqs: any[] = reqRes.data ?? [];
-  const pays: any[] = payments ?? [];
+  const reqs: any[] = reqData ?? [];
+  const pays: any[] = paymentsData ?? [];
   const amendedReqs = reqs.filter((r) => r.currency_amended);
 
   // ---- headline KPIs ----
