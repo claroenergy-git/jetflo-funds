@@ -1,6 +1,7 @@
-# Purchase Orders — Spec (Draft, for discussion)
+# Purchase Orders — Spec
 
-**Status:** Draft — not yet built
+**Status:** v1 shipped (`009_purchase_orders.sql`, `010_fix_po_status_recalc_transition.sql`,
+`011_po_procedure_enhancements.sql`) · v2.0 roadmap drafted, not yet built — see §7
 **Decided so far:**
 - Finance-only issue POs (mirrors vendor onboarding's dual-control model)
 - POs above a configurable threshold (default ₹10,00,000) require a second, different
@@ -224,5 +225,134 @@ PO table can reuse identical arithmetic.
    status flip) needs the same "different user than creator" check the fund-request
    trigger already does at [001_jetflo_schema_core.sql:224](supabase/migrations/001_jetflo_schema_core.sql#L224).
 
-This is now fully specced. Next step is the migration (schema + triggers + RLS), then
-server actions, then UI.
+## 6.3 Shipped beyond this spec's original scope
+
+`011_po_procedure_enhancements.sql` landed alongside v1 and isn't reflected above —
+recorded here so this file stays the accurate source rather than drifting from the
+migrations:
+
+- **Logistics header fields**: `order_date`, `expected_delivery_date`, `destination_plant`,
+  `reference_no` (vendor quote/proforma #), `payment_terms`, `transporter_name`, `lr_no`.
+- **Goods receipt (GRN)**: `jetflo_purchase_receives` / `jetflo_purchase_receive_items`,
+  a per-line `qty_received`, and a trigger-maintained `receive_status`
+  (`pending` → `partially_received` → `received`) on the parent PO.
+- **Ground team can draft**: RLS was widened so a `requester` — not just `finance` — can
+  create and edit their own `draft` PO (plant teams raising a draft for finance to
+  review), with **Issue** still finance-only.
+
+None of this needed a spec revision at the time; it's folded in here so the next
+person reads one accurate document instead of the migration diff.
+
+---
+
+# 7 — Version 2.0 roadmap
+
+**Status:** Draft — proposed, not yet built. Nothing below gets implemented until each
+item is pulled into its own dated addendum here (per the docs-first rule: spec before
+code) and, for anything schema-shaped, confirmed rather than assumed.
+
+**Visual reference:** every widget in this section has a mocked-up dashboard card in
+the companion concept board — ask for the "PO Control Tower" artifact link if it isn't
+already in hand. The mockups use placeholder vendors/numbers; nothing in them is live
+data.
+
+The throughline across all seven tracks: v1 made a PO a real object with a balance.
+v2.0 makes that object *informative* — it should tell finance and leadership things they
+'d otherwise have to notice by hand: a vendor's price creeping up, a delivery running
+late, an invoice that doesn't match what actually arrived, an approval that's been
+sitting for two days. Each track below is a candidate spec, not a commitment — order of
+build is a separate conversation.
+
+## 7.A — Sourcing & vendor intelligence
+
+*Everything that should inform a draft before it's created.*
+
+| # | Feature | Why | Data model shape (proposed) |
+|---|---|---|---|
+| A1 | **RFQ / comparative quotation** | A PO today records only the winning vendor — there's no trace of who else was asked or what they quoted, so "why this vendor" is undocumented and price comparison is manual. | New `jetflo_rfqs` (one per sourcing event) + `jetflo_rfq_quotes` (one row per vendor response: rate, lead time, validity). "Convert to draft PO" copies the winning quote's lines the same way "Issue PO from this request" copies a request's line today. |
+| A2 | **Vendor rate-card / price history** | Nothing today stops a PO being issued at a rate well above the last one paid for the same SKU — this is the gap the Command Deck's price-variance widget depends on. | Derived, not stored: query `jetflo_purchase_order_items` by `product_sku` + `vendor_id`, ordered by the parent PO's `issued_at`. A materialized view if the query gets expensive at scale. |
+| A3 | **Vendor scorecard** | Vendor standing is currently a name and a GSTIN — nothing rolls up delivery or quality history to inform the next PO. | Derived from GRN disposition (A-group ↔ C-group overlap: needs C2's accepted/rejected split) and `expected_delivery_date` vs. actual receipt date, rolled up per vendor. Surfaced on the vendor directory and inline when a vendor is picked on a new draft. |
+| A4 | **Preferred / restricted flags at PO creation** | `jetflo_vendors` likely already carries an active/category flag; it's not surfaced at the moment a vendor is picked on a draft, only on the vendor directory page. | UI-only — read the existing vendor row, badge it in the `<select>`/picker. |
+
+## 7.B — Commercial structures
+
+*Shapes a single PO ↔ single delivery ↔ single bill doesn't cover.*
+
+| # | Feature | Why | Data model shape (proposed) |
+|---|---|---|---|
+| B1 | **Blanket / rate-contract POs** | Recurring raw-material buys (e.g. an annual steel rate contract) don't fit "one PO, one delivery" — today each release would need its own PO, losing the annual-ceiling view. | `jetflo_purchase_orders.po_type` (`standard` \| `blanket`), a `validity_from`/`validity_to`, and a new `jetflo_po_release_orders` table (own line items, own delivery date) that draws down the parent's ceiling — same balance-check trigger shape as §4, scoped to release totals instead of request totals. |
+| B2 | **PO templates** | A monthly recurring buy from the same vendor is re-typed from scratch every time. | `jetflo_po_templates` storing vendor, budget head, line-item shape and terms; "New Draft PO from template" pre-fills exactly like "Issue PO from this request" does today. |
+| B3 | **Structured payment milestones** | `payment_terms` is free text (per §6.3) — nothing reads it, so "Raise Fund Request from this PO" can't suggest the right amount for the next tranche. | New `jetflo_po_payment_milestones` (label, percent-or-amount, trigger condition e.g. `on_dispatch`). The linked-request form reads open milestones instead of a blank amount field. |
+| B4 | **Landed cost for import (USD) POs** | Freight/customs/insurance on an import order are invisible costs today — `total_value` is only the vendor's own line items. | Extra line-item `cost_type` (`goods` \| `freight` \| `customs` \| `insurance`), rolled into a computed landed unit cost shown alongside the vendor rate, USD POs only. |
+| B5 | **Short-close a line** | A vendor who can't fulfil the remainder of a line leaves that quantity "pending" forever with no way to release its value back to the PO balance. | A `short_closed` flag + reason on `jetflo_purchase_order_items`; the balance-check in §4 excludes short-closed remainder from "still committable." |
+| B6 | **Stale-PO flag** | An `open` PO with no GRN or linked request activity for 60+ days is currently invisible — it just sits there consuming budget-head headroom. | Derived: `updated_at` vs. now, surfaced as a dashboard list, no schema change. |
+
+## 7.C — Three-way match & quality
+
+*The dashboard already promises "3-Way Match tracking" (see the empty-state copy on
+`finance/purchase-orders`) — today it shows PO/GRN/billed totals side by side but never
+reconciles them. This track makes that copy true.*
+
+| # | Feature | Why | Data model shape (proposed) |
+|---|---|---|---|
+| C1 | **Automated 3-way match** | Nothing today checks that a linked fund request's amount is consistent with what was actually received (GRN qty × PO rate) — only that it fits inside the PO's total balance (§4). A vendor can be paid in full for a short delivery and nothing flags it. | A check run at fund-request approval, alongside `jetflo_check_po_balance`: compare cumulative invoiced qty/value per line against cumulative `qty_received`. Outside tolerance (see C3) → block approval with a named variance, same pattern as the existing balance-exceeded exception. |
+| C2 | **GRN quality disposition** | `qty_received` today is one number — there's no "received but rejected on inspection" state, so a rejected delivery reads identically to a good one. | `jetflo_purchase_receive_items` gains `qty_accepted`, `qty_rejected`, `rejection_reason`; `qty_received` on the parent line becomes `qty_accepted` for match purposes. |
+| C3 | **Configurable match tolerance** | A rigid 100% match on quantity/rate would false-flag every rounding difference. | A setting (mirrors `po_second_approver_above`'s pattern) — e.g. `po_match_tolerance_percent`, default 2. |
+
+## 7.D — Approvals & controls
+
+*A single fixed value threshold (§2, `po_second_approver_above`) is a rule, not a
+policy — this track makes the policy configurable and makes sure nothing waits
+silently.*
+
+| # | Feature | Why | Data model shape (proposed) |
+|---|---|---|---|
+| D1 | **Configurable multi-tier approval matrix** | Every category above the threshold needs exactly one second approver today, regardless of category or how far above threshold it is. | New `jetflo_po_approval_rules` (category, value band, approver count/role), replacing the single settings key. The state-machine trigger in `011` reads this table instead of one constant. |
+| D2 | **Approval delegation** | A PO stuck in `pending_second_approval` because the only other finance user is on leave has no path forward today except waiting. | `jetflo_approval_delegations` (delegator, delegate, date range); the "different user than creator" check in the transition trigger accepts the delegate too. |
+| D3 | **SLA & escalation** | Nothing currently times how long a PO sits in `pending_second_approval` — the audit log records the eventual approval, not the wait. | A scheduled check (existing job runner, if one exists — otherwise a cron) flags POs past an SLA setting and escalates per D1's matrix. |
+
+## 7.E — Vendor collaboration & alerts
+
+*v1 emails a PDF and stops. This track gives the vendor a step to act on and gets the
+alerts that matter onto a phone, not just into the app.*
+
+| # | Feature | Why | Data model shape (proposed) |
+|---|---|---|---|
+| E1 | **Vendor acknowledgement** | Once a PO is emailed (§6, "vendor delivery"), there's no signal back — finance doesn't know if the vendor even opened it, let alone agreed to the delivery date. | A signed, expiring link on the emailed PDF; vendor response (`acknowledged` \| `disputed`, optional counter-date) lands as a new PO timeline step and an audit-log row, no vendor login required. |
+| E2 | **WhatsApp / SMS to plant ground team** | Delivery-due reminders and GRN prompts are in-app only; the people at the loading dock aren't necessarily the people with the app open. | Reuses whatever transactional messaging provider is chosen for the requester-facing app (if any exists already — otherwise a new integration decision, flag for ADR). |
+| E3 | **Automated finance digest** | The "what needs me today" view only exists if someone opens the dashboard. | A scheduled job querying the same three sources the Command Deck's funnel/heatmap/variance widgets already use, formatted as email + optional WhatsApp. |
+
+## 7.F — Command Deck analytics
+
+*Direct extensions of the existing "PO Utilization" table
+([dashboard/page.tsx](src/app/(app)/dashboard/page.tsx)) — the leadership view §1 of
+this spec originally promised ("committed but not yet billed... per vendor/order") but
+the shipped table only ever showed GRN and billed progress bars, not the budget-head
+commitment layer.*
+
+| # | Feature | Why |
+|---|---|---|
+| F1 | **Committed-but-not-billed layer on budget utilization** | Closes the exact gap §1 called out: the CAPEX/Raw-Material utilization tables show sanctioned vs. approved, never the open-PO value sitting in between. Three-segment bar: billed / PO-committed / available. |
+| F2 | **Vendor spend concentration** | Surfaces concentration risk (e.g. one vendor holding 40% of a category's open commitment) that's invisible in a flat PO list. |
+| F3 | **Delivery reliability heatmap** | Rolls up the per-PO "Overdue" chip (already on the PO list today) into a per-vendor, per-week pattern — a single late PO is noise, a vendor consistently 6+ days late is signal. |
+| F4 | **Price variance alerts feed** | Surfaces A2's rate-card check as a ranked list — the biggest recent jumps first — instead of something finance has to go looking for. |
+| F5 | **Approval funnel with SLA breach highlight** | Shows where POs are actually stuck (draft too long / second-approval too long) rather than just current counts per status. |
+
+## 7.G — Documents, compliance & integration
+
+*Lower visual footprint than F, same "one integration point, not a one-off script"
+principle.*
+
+| # | Feature | Why |
+|---|---|---|
+| G1 | **E-signature on the issued PDF** | The document handed to a vendor today is letterhead + data, no signature. |
+| G2 | **GSTIN / e-invoice cross-check** | Nothing currently validates a linked invoice's GSTIN or tax math against the vendor master before a fund request approves against a PO. |
+| G3 | **Accounting export (Tally / Zoho)** | Issued POs and recorded GRNs currently live only in JetFlo — every downstream accounting entry is re-keyed by hand. |
+| G4 | **Mobile GRN capture with photo** | `LogGoodsReceiptPanel` (§5) is a desktop-shaped form today; the plant gate is not a desk — a phone-first flow with a delivery-challan photo attached to the GRN record removes the "type it in later" step. |
+
+---
+
+Next step for any of the above: pick one item, write it as its own dated spec section
+under this file (or split into its own file if it grows past a few hundred lines —
+matching how `009`/`010`/`011` split by concern rather than landing as one migration),
+get the schema/API questions in it answered, *then* build.
