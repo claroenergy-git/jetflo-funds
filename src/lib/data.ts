@@ -209,4 +209,77 @@ export async function getOpenPurchaseOrdersForPicker(profile: Profile): Promise<
   });
 }
 
+export type VendorSearchHit = {
+  id: string;
+  name: string;
+  trade_name: string | null;
+  gstin: string | null;
+  city: string | null;
+  status: string;
+  active: boolean;
+};
+
+export type PaymentSearchHit = {
+  id: string;
+  request_id: string;
+  request_no: string | null;
+  vendor_name: string | null;
+  item_description: string | null;
+  amount_paid: number;
+  currency: string | null;
+  paid_on: string;
+  mode: string;
+  utr_ref: string | null;
+};
+
+const SEARCH_LIMIT = 8;
+
+/**
+ * Header search across vendors and recorded payments. Runs under the caller's RLS context,
+ * so requesters only ever see payments on requests they can already see.
+ */
+export async function searchPortal(
+  profile: Profile,
+  rawQuery: string
+): Promise<{ vendors: VendorSearchHit[]; payments: PaymentSearchHit[] }> {
+  const q = rawQuery.trim();
+  if (q.length < 2) return { vendors: [], payments: [] };
+
+  // Escape LIKE wildcards so "50%" or "a_b" are matched literally.
+  const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const pattern = `%${escaped}%`;
+  // Lets "125000" or "1,25,000" match an amount.
+  const digits = q.replace(/[,\s₹$]/g, "");
+  const amount = /^\d+(\.\d+)?$/.test(digits) ? digits : null;
+
+  return withUserContext(profile.id, async (client) => {
+    const vendorsRes = await client.query<VendorSearchHit>(
+      `SELECT id, name, trade_name, COALESCE(gstin, vat_no) AS gstin, city, status, active
+         FROM jetflo_vendors
+        WHERE name ILIKE $1 OR trade_name ILIKE $1 OR gstin ILIKE $1 OR vat_no ILIKE $1
+           OR pan ILIKE $1 OR city ILIKE $1 OR contact_person ILIKE $1 OR email ILIKE $1
+        ORDER BY (name ILIKE $2) DESC, name
+        LIMIT ${SEARCH_LIMIT}`,
+      [pattern, `${escaped}%`]
+    );
+
+    const paymentsRes = await client.query<PaymentSearchHit>(
+      `SELECT p.id, p.request_id, fr.request_no, v.name AS vendor_name, fr.item_description,
+              p.amount_paid::float8 AS amount_paid, fr.currency, p.paid_on::text AS paid_on,
+              p.mode, p.utr_ref
+         FROM jetflo_payments p
+         JOIN jetflo_fund_requests fr ON fr.id = p.request_id
+         LEFT JOIN jetflo_vendors v ON v.id = fr.vendor_id
+        WHERE fr.request_no ILIKE $1 OR v.name ILIKE $1 OR fr.item_description ILIKE $1
+           OR p.utr_ref ILIKE $1 OR p.bank ILIKE $1 OR p.remarks ILIKE $1
+           OR ($2::numeric IS NOT NULL AND p.amount_paid = $2::numeric)
+        ORDER BY p.paid_on DESC, p.created_at DESC
+        LIMIT ${SEARCH_LIMIT}`,
+      [pattern, amount]
+    );
+
+    return { vendors: vendorsRes.rows, payments: paymentsRes.rows };
+  });
+}
+
 export type { PoolClient };

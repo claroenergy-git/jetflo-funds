@@ -4,6 +4,7 @@ import { requireProfile } from "@/lib/data";
 import { signOut } from "@/app/actions";
 import { NavLinks } from "@/components/nav-links";
 import { ChangePasswordModal } from "@/components/change-password-modal";
+import { GlobalSearch } from "@/components/global-search";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireProfile();
@@ -47,7 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       {/* Anchored Header & Tabs */}
       <header className="shrink-0 z-40 border-b border-[#e5decb] bg-white/95 backdrop-blur-xl shadow-[0_4px_20px_-5px_rgba(26,40,31,0.06)] print:hidden">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 py-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap md:flex-nowrap items-center justify-between gap-x-4 gap-y-3 px-4 sm:px-6 py-3">
           {/* High-Visibility Logo with Circular Badge */}
           <Link href="/" className="flex items-center gap-3.5 group">
             <div className="relative flex h-14 w-14 sm:h-15 sm:w-15 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#c8bd9f] bg-gradient-to-br from-[#f2ece0] to-white p-1 shadow-sm transition-all duration-300 group-hover:scale-105 group-hover:border-[#1e3e30]">
@@ -67,6 +68,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <p className="text-xs text-[#536658] font-bold tracking-wide">Claro Manufacturing Pvt. Ltd.</p>
             </div>
           </Link>
+
+          {/* Global Search — vendors & recorded payments */}
+          <div className="order-last w-full md:order-none md:flex md:flex-1 md:justify-center">
+            <GlobalSearch />
+          </div>
 
           {/* User Profile & Actions */}
           <div className="flex items-center gap-3">
