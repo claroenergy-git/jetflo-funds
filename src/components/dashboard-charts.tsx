@@ -108,12 +108,14 @@ export function Kpi({
   sub,
   accent,
   variant = "default",
+  badge,
 }: {
   label: string;
   value: string;
   sub?: string;
   accent?: string;
   variant?: "default" | "amber" | "emerald";
+  badge?: string;
 }) {
   const variantStyles = {
     default: "bento-card bg-white",
@@ -131,7 +133,14 @@ export function Kpi({
       )}
       <div className="text-[11px] font-bold uppercase tracking-wider text-[#415546] flex items-center justify-between">
         <span>{label}</span>
-        {accent && <span className="h-2 w-2 rounded-full" style={{ background: accent }} />}
+        <span className="flex items-center gap-1.5">
+          {badge && (
+            <span className="rounded-full border border-[#e5decb] bg-[#fbf9f4] px-2 py-0.5 text-[9px] font-bold normal-case tracking-normal text-[#7a8d80]">
+              {badge}
+            </span>
+          )}
+          {accent && <span className="h-2 w-2 rounded-full" style={{ background: accent }} />}
+        </span>
       </div>
       <div className="mt-2 text-2xl sm:text-3xl font-extrabold tracking-tight text-[#14261c]">{value}</div>
       {sub && <div className="mt-1 text-xs text-[#536658] font-semibold">{sub}</div>}

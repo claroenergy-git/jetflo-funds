@@ -42,6 +42,10 @@ approved → paid (auto, when payments total the approved amount) → closed
 - Requesters cannot approve; finance cannot raise requests; leadership has **no write path
   at the RLS level** (all enforced by Postgres RLS + a transition trigger).
 - Amounts in INR with Indian digit grouping and ₹ L / ₹ Cr compact formatting.
+- Email notifications go to the portal users involved plus the **Ground team** / **Accounts team**
+  recipient lists that leadership manages on *Governance Limits* (`jetflo_notification_recipients`,
+  migration `012`). Ground: approved / partial / rejected / sent back / payment recorded.
+  Accounts: submitted / needs second approver / currency amended.
 
 ## Stack
 

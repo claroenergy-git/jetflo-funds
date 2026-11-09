@@ -4,16 +4,67 @@ import { getSupabase, getSupabaseAdmin } from "@/lib/supabase/server";
 import { adminQuery } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { notify, siteUrl } from "@/lib/mailer";
+import { escapeHtml, notify, siteUrl } from "@/lib/mailer";
+import { currencySymbol } from "@/lib/format";
 
 export type ActionResult = { ok: boolean; error?: string; warning?: string; id?: string };
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
+/** Decision outcomes the ground team is emailed about, keyed by the new request status. */
+const GROUND_DECISION_EMAIL: Record<string, string> = {
+  approved: "approved",
+  partially_approved: "partially approved",
+  rejected: "rejected",
+  sent_back: "sent back for changes",
+};
+
+/** Extra recipients managed on the Settings page. Never throws — a lookup failure must not block the workflow. */
+async function teamRecipientEmails(team: "ground" | "accounts"): Promise<string[]> {
+  try {
+    const rows = await adminQuery<{ email: string }>(
+      `SELECT email FROM jetflo_notification_recipients WHERE team = $1`,
+      [team]
+    );
+    return rows.map((r) => r.email);
+  } catch (err) {
+    console.error("Mailer: could not load notification recipients:", team, err);
+    return [];
+  }
+}
+
+function uniqueEmails(emails: (string | null | undefined)[]): string[] {
+  const seen = new Map<string, string>();
+  for (const e of emails) if (e) seen.set(e.trim().toLowerCase(), e.trim());
+  return [...seen.values()];
+}
+
+/** Finance logins (minus the acting user) plus the accounts-team notification list. */
 async function financeEmails(admin: AdminClient, excludeUserId?: string): Promise<string[]> {
-  let query = admin.from("jetflo_users").select("email, id").eq("role", "finance").eq("active", true);
-  const { data } = await query;
-  return (data ?? []).filter((u) => u.id !== excludeUserId).map((u) => u.email).filter(Boolean);
+  const { data } = await admin.from("jetflo_users").select("email, id").eq("role", "finance").eq("active", true);
+  const logins = (data ?? []).filter((u) => u.id !== excludeUserId).map((u) => u.email);
+  return uniqueEmails([...logins, ...(await teamRecipientEmails("accounts"))]);
+}
+
+/** The requester of a fund request plus the ground-team notification list. */
+async function groundEmails(requesterEmail: string | null | undefined): Promise<string[]> {
+  return uniqueEmails([requesterEmail, ...(await teamRecipientEmails("ground"))]);
+}
+
+async function requestContact(requestId: string) {
+  const rows = await adminQuery<{
+    request_no: string | null;
+    item_description: string | null;
+    currency: string | null;
+    requester_email: string | null;
+  }>(
+    `SELECT fr.request_no, fr.item_description, fr.currency, u.email AS requester_email
+     FROM jetflo_fund_requests fr
+     LEFT JOIN jetflo_users u ON u.id = fr.requester_id
+     WHERE fr.id = $1`,
+    [requestId]
+  );
+  return rows[0] ?? null;
 }
 
 /**
@@ -580,6 +631,21 @@ export async function financeDecide(_prev: ActionResult | null, formData: FormDa
     });
   }
 
+  const groundOutcome = GROUND_DECISION_EMAIL[String(update.status)];
+  if (groundOutcome) {
+    const contact = await requestContact(id);
+    const amountLine = update.amount_approved
+      ? ` — ${currencySymbol(req.currency)}${Number(update.amount_approved).toLocaleString("en-IN")} approved`
+      : "";
+    notify({
+      to: await groundEmails(contact?.requester_email),
+      subject: `Request ${decided?.request_no ?? ""} ${groundOutcome}`,
+      html: `<p>${escapeHtml(decided?.item_description ?? "Your request")}${amountLine}.</p>${
+        remarks ? `<p><b>Finance remarks:</b> ${escapeHtml(remarks)}</p>` : ""
+      }<p><a href="${siteUrl(`/requests/${id}`)}">View the request</a></p>`,
+    });
+  }
+
   revalidatePath("/", "layout");
   return {
     ok: true,
@@ -610,28 +676,12 @@ export async function recordPayment(_prev: ActionResult | null, formData: FormDa
   });
   if (error) return { ok: false, error: error.message.replace(/^.*?exception:\s*/i, "") };
 
-  const reqRows = await adminQuery<{
-    request_no: string;
-    currency: string;
-    requester: { email: string } | null;
-  }>(
-    `SELECT fr.request_no, fr.currency,
-       CASE WHEN u.id IS NOT NULL THEN json_build_object('email', u.email) END AS requester
-     FROM jetflo_fund_requests fr
-     LEFT JOIN jetflo_users u ON u.id = fr.requester_id
-     WHERE fr.id = $1`,
-    [requestId]
-  );
-  const req = reqRows[0];
-  const requesterEmail = req?.requester?.email;
-  if (requesterEmail) {
-    const sym = req?.currency === "USD" ? "$" : "₹";
-    notify({
-      to: requesterEmail,
-      subject: `Payment recorded for ${req?.request_no ?? "your request"}`,
-      html: `<p>${sym}${amount.toLocaleString("en-IN")} has been transferred against ${req?.request_no ?? "your request"}.</p><p><a href="${siteUrl(`/requests/${requestId}`)}">View the request</a></p>`,
-    });
-  }
+  const req = await requestContact(requestId);
+  notify({
+    to: await groundEmails(req?.requester_email),
+    subject: `Payment recorded for ${req?.request_no ?? "your request"}`,
+    html: `<p>${currencySymbol(req?.currency)}${amount.toLocaleString("en-IN")} has been transferred against ${req?.request_no ?? "your request"}.</p><p><a href="${siteUrl(`/requests/${requestId}`)}">View the request</a></p>`,
+  });
 
   const proof = formData.get("proof") as File | null;
   if (proof && proof.size > 0) {
@@ -1041,6 +1091,45 @@ export async function updateGovernanceSettings(_prev: ActionResult | null, formD
   }
 
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+async function requireLeadership() {
+  const { supabase, userId } = await ctx();
+  const { data } = await supabase.from("jetflo_users").select("role").eq("id", userId).single();
+  return data?.role === "leadership" ? userId : null;
+}
+
+export async function addNotificationRecipient(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const userId = await requireLeadership();
+  if (!userId) return { ok: false, error: "Access Denied: Only Leadership can manage notification recipients." };
+
+  const team = String(formData.get("team"));
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const name = String(formData.get("name") || "").trim() || null;
+  if (team !== "ground" && team !== "accounts") return { ok: false, error: "Pick a team." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Enter a valid email address." };
+
+  try {
+    await adminQuery(
+      `INSERT INTO jetflo_notification_recipients (team, name, email, created_by) VALUES ($1, $2, $3, $4)`,
+      [team, name, email, userId]
+    );
+  } catch (err: any) {
+    if (err?.code === "23505") return { ok: false, error: `${email} is already on the ${team} list.` };
+    return { ok: false, error: err?.message || "Could not add recipient." };
+  }
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function removeNotificationRecipient(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  if (!(await requireLeadership())) {
+    return { ok: false, error: "Access Denied: Only Leadership can manage notification recipients." };
+  }
+  await adminQuery(`DELETE FROM jetflo_notification_recipients WHERE id = $1`, [String(formData.get("id"))]);
+  revalidatePath("/settings");
   return { ok: true };
 }
 

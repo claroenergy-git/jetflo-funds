@@ -3,7 +3,19 @@ import { getSupabase } from "@/lib/supabase/server";
 import { requireProfile, getFundRequests, getPurchaseOrders } from "@/lib/data";
 import { withUserContext } from "@/lib/db";
 import { PageTitle, Card } from "@/components/ui";
-import { inr, fmtMoney, fmtDate, daysSince, monthKey, agingBucket } from "@/lib/format";
+import {
+  inr,
+  fmtMoney,
+  fmtMoneyMulti,
+  fmtDate,
+  daysSince,
+  monthKey,
+  agingBucket,
+  istDateKey,
+  sumByCurrency,
+  addTotals,
+  type CurrencyTotals,
+} from "@/lib/format";
 import { MonthlyBars, HBarList, Kpi, C_CAPEX, C_RM } from "@/components/dashboard-charts";
 import { CsvButton } from "@/components/csv-button";
 
@@ -22,7 +34,8 @@ export default async function DashboardPage({
 
   const paymentsData: any[] = await withUserContext(profile.id, async (client) => {
     const res = await client.query(
-      `SELECT p.id, p.amount_paid, p.paid_on, p.mode, p.utr_ref,
+      `SELECT p.id, p.amount_paid, p.paid_on::text AS paid_on, p.mode, p.utr_ref,
+         COALESCE(fr.currency, 'INR') AS currency,
          json_build_object(
            'request_no', fr.request_no, 'category', fr.category, 'product_sku', fr.product_sku,
            'vendor', CASE WHEN v.id IS NOT NULL THEN json_build_object('name', v.name) END,
@@ -89,15 +102,27 @@ export default async function DashboardPage({
   const reqs: any[] = reqData ?? [];
   const pays: any[] = paymentsData ?? [];
   const amendedReqs = reqs.filter((r) => r.currency_amended);
+  const reqCurrency = (r: any) => r.currency || "INR";
+  const payAmount = (p: any) => +p.amount_paid;
+  const payCurrency = (p: any) => p.currency;
+
+  // ---- date filter ----
+  // Applies to flows (payments made, decisions taken in the period). Positions — funds in flight,
+  // unclosed advances, budget utilisation, PO matrix, aging — are "as of today" and labelled so.
+  const isFiltered = Boolean(from || to);
+  const inRange = (d: string | Date | null | undefined) => {
+    if (!d) return false;
+    const day = istDateKey(d);
+    return (!from || day >= from) && (!to || day <= to);
+  };
+  const fPays = isFiltered ? pays.filter((p) => inRange(p.paid_on)) : pays;
+  const periodLabel = isFiltered
+    ? `${from ? fmtDate(from) : "Start"} → ${to ? fmtDate(to) : "Today"}`
+    : "Since inception";
 
   // ---- headline KPIs ----
-  const paidCapex = pays.filter((p) => p.request?.category === "capex").reduce((s, p) => s + +p.amount_paid, 0);
-  const paidRm = pays.filter((p) => p.request?.category === "raw_material").reduce((s, p) => s + +p.amount_paid, 0);
-
-  // ---- date-filtered slices ----
-  const inRange = (d: string | null) =>
-    !!d && (!from || d >= from) && (!to || d.slice(0, 10) <= to);
-  const fPays = from || to ? pays.filter((p) => inRange(p.paid_on)) : pays;
+  const paidCapex = sumByCurrency(fPays.filter((p) => p.request?.category === "capex"), payAmount, payCurrency);
+  const paidRm = sumByCurrency(fPays.filter((p) => p.request?.category === "raw_material"), payAmount, payCurrency);
 
   // money in flight
   const approvedUnpaid = reqs.filter(
@@ -105,18 +130,22 @@ export default async function DashboardPage({
   );
   const awaitingApproval = reqs.filter((r) => ["submitted", "awaiting_second_approval"].includes(r.status));
   const unclosed = reqs.filter((r) => r.status === "paid");
-  const inFlight =
-    approvedUnpaid.reduce((s, r) => s + +r.amount_approved - +r.amount_paid, 0) +
-    awaitingApproval.reduce((s, r) => s + +r.amount_requested, 0);
+  const inFlight = addTotals(
+    sumByCurrency(approvedUnpaid, (r) => +r.amount_approved - +r.amount_paid, reqCurrency),
+    sumByCurrency(awaitingApproval, (r) => +r.amount_requested, reqCurrency)
+  );
+  const unclosedTotals = sumByCurrency(unclosed, (r) => +r.amount_paid, reqCurrency);
 
-  // TATs
-  const decided = reqs.filter((r) => r.submitted_at && r.decided_at);
+  // TATs — requests decided / first paid within the period
+  const decided = reqs.filter((r) => r.submitted_at && r.decided_at && (!isFiltered || inRange(r.decided_at)));
   const avgApprovalDays = decided.length
     ? decided.reduce((s, r) => s + (new Date(r.decided_at).getTime() - new Date(r.submitted_at).getTime()), 0) /
       decided.length /
       86400000
     : 0;
-  const paidReqs = reqs.filter((r) => r.submitted_at && r.first_paid_at);
+  const paidReqs = reqs.filter(
+    (r) => r.submitted_at && r.first_paid_at && (!isFiltered || inRange(r.first_paid_at))
+  );
   const avgPayDays = paidReqs.length
     ? paidReqs.reduce((s, r) => s + (new Date(r.first_paid_at).getTime() - new Date(r.submitted_at).getTime()), 0) /
       paidReqs.length /
@@ -132,21 +161,32 @@ export default async function DashboardPage({
           r.budget_head?.sub_head === h.sub_head &&
           ["approved", "partially_approved", "paid", "closed"].includes(r.status)
       );
-      const committed = hr.reduce((s, r) => s + +(r.amount_approved ?? 0), 0);
-      const paid = hr.reduce((s, r) => s + +(r.amount_paid ?? 0), 0);
+      const committed = sumByCurrency(hr, (r) => +(r.amount_approved ?? 0), reqCurrency);
+      const paid = sumByCurrency(hr, (r) => +(r.amount_paid ?? 0), reqCurrency);
+      // Sanctioned budgets are in INR, so utilisation is INR-committed vs sanctioned.
       const sanctioned = +(h.sanctioned_amount ?? 0);
-      return { sub_head: h.sub_head, sanctioned, committed, paid, util: sanctioned ? committed / sanctioned : 0 };
+      const committedInr = committed.INR ?? 0;
+      return { sub_head: h.sub_head, sanctioned, committed, paid, committedInr, util: sanctioned ? committedInr / sanctioned : 0 };
     })
-    .filter((r) => r.sanctioned || r.committed)
-    .sort((a, b) => b.committed - a.committed);
+    .filter((r) => r.sanctioned || Object.values(r.committed).some(Boolean))
+    .sort((a, b) => b.committedInr - a.committedInr);
 
   const capexTotals = capexRows.reduce(
-    (t, r) => ({ sanctioned: t.sanctioned + r.sanctioned, committed: t.committed + r.committed, paid: t.paid + r.paid }),
-    { sanctioned: 0, committed: 0, paid: 0 }
+    (t, r) => ({
+      sanctioned: t.sanctioned + r.sanctioned,
+      committed: addTotals(t.committed, r.committed),
+      paid: addTotals(t.paid, r.paid),
+    }),
+    { sanctioned: 0, committed: {} as CurrencyTotals, paid: {} as CurrencyTotals }
   );
 
-  // RM: monthly run-rate
-  const rmPays = fPays.filter((p) => p.request?.category === "raw_material");
+  // RM: charts plot a single INR scale; other-currency payments are called out separately
+  const rmPaysAll = fPays.filter((p) => p.request?.category === "raw_material");
+  const rmPays = rmPaysAll.filter((p) => p.currency === "INR");
+  const rmOtherCurrency = sumByCurrency(rmPaysAll.filter((p) => p.currency !== "INR"), payAmount, payCurrency);
+  const rmExcludedNote = Object.keys(rmOtherCurrency).length
+    ? `INR only · excludes ${fmtMoneyMulti(rmOtherCurrency)} paid in other currencies`
+    : null;
   const byMonth = new Map<string, number>();
   for (const p of rmPays) byMonth.set(monthKey(p.paid_on), (byMonth.get(monthKey(p.paid_on)) ?? 0) + +p.amount_paid);
   const trend = [...byMonth.entries()].map(([label, value]) => ({ label, value }));
@@ -165,11 +205,11 @@ export default async function DashboardPage({
   const rmFilteredTotal = rmPays.reduce((s, p) => s + +p.amount_paid, 0);
 
   // aging buckets
-  const buckets = new Map<string, { count: number; amount: number }>();
+  const buckets = new Map<string, { count: number; amount: CurrencyTotals }>();
   for (const r of unclosed) {
     const b = agingBucket(daysSince(r.first_paid_at));
-    const cur = buckets.get(b) ?? { count: 0, amount: 0 };
-    buckets.set(b, { count: cur.count + 1, amount: cur.amount + +r.amount_paid });
+    const cur = buckets.get(b) ?? { count: 0, amount: {} };
+    buckets.set(b, { count: cur.count + 1, amount: addTotals(cur.amount, { [reqCurrency(r)]: +r.amount_paid }) });
   }
 
   // CSV rows
@@ -179,6 +219,7 @@ export default async function DashboardPage({
     sub_head: p.request?.budget_head?.sub_head,
     vendor: p.request?.vendor?.name,
     sku: p.request?.product_sku ?? "",
+    currency: p.currency,
     amount: p.amount_paid,
     paid_on: p.paid_on,
     mode: p.mode,
@@ -186,11 +227,15 @@ export default async function DashboardPage({
   }));
   const capexCsv = capexRows.map((r) => ({
     sub_head: r.sub_head,
-    sanctioned: r.sanctioned,
-    committed: r.committed,
-    paid: r.paid,
+    sanctioned_inr: r.sanctioned,
+    committed_inr: r.committed.INR ?? 0,
+    paid_inr: r.paid.INR ?? 0,
+    committed_usd: r.committed.USD ?? 0,
+    paid_usd: r.paid.USD ?? 0,
     utilization_pct: Math.round(r.util * 100),
   }));
+  const poTotals = sumByCurrency(poRows, (p: any) => Number(p.total_value || 0), (p: any) => p.currency);
+  const poBilled = sumByCurrency(poRows, (p: any) => Number(p.billed || 0), (p: any) => p.currency);
 
   const qs = (f?: string, t?: string) => {
     const p = new URLSearchParams();
@@ -318,31 +363,42 @@ export default async function DashboardPage({
         </div>
       )}
 
+      {isFiltered && (
+        <div className="rounded-xl border border-[#cce3d4] bg-[#eaf3ed] px-4 py-2.5 text-xs font-semibold text-[#1e3e30]">
+          Showing <b>{periodLabel}</b> for payments, spend charts and turnaround times. Sections marked{" "}
+          <b>As of today</b> show the current position and aren&apos;t affected by the date filter.
+        </div>
+      )}
+
       {/* Row 1: Actionable Headline KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Kpi
           label="Total CAPEX Deployed"
-          value={inr(paidCapex, { compact: true })}
-          sub={`${inr(paidCapex)} settled`}
+          value={fmtMoneyMulti(paidCapex, { compact: true })}
+          sub={`${fmtMoneyMulti(paidCapex)} settled`}
+          badge={periodLabel}
           accent={C_CAPEX}
           variant="emerald"
         />
         <Kpi
           label="Raw Material Payments"
-          value={inr(paidRm, { compact: true })}
-          sub={`${inr(paidRm)} settled`}
+          value={fmtMoneyMulti(paidRm, { compact: true })}
+          sub={`${fmtMoneyMulti(paidRm)} settled`}
+          badge={periodLabel}
           accent={C_RM}
           variant="amber"
         />
         <Kpi
           label="Funds In Flight"
-          value={inr(inFlight, { compact: true })}
+          value={fmtMoneyMulti(inFlight, { compact: true })}
           sub={`${approvedUnpaid.length} approved unpaid · ${awaitingApproval.length} in queue`}
+          badge="As of today"
         />
         <Kpi
           label="Unclosed Advances"
-          value={inr(unclosed.reduce((s, r) => s + +r.amount_paid, 0), { compact: true })}
+          value={fmtMoneyMulti(unclosedTotals, { compact: true })}
           sub={`${unclosed.length} paid, invoices pending`}
+          badge="As of today"
         />
       </div>
 
@@ -387,14 +443,14 @@ export default async function DashboardPage({
                       </span>
                     </td>
                     <td className="max-w-[200px] truncate px-6 py-3 text-xs font-bold text-[#14261c]">{p.request?.vendor?.name}</td>
-                    <td className="px-6 py-3 text-right font-bold tabular-nums text-[#14261c]">{inr(+p.amount_paid)}</td>
+                    <td className="px-6 py-3 text-right font-bold tabular-nums text-[#14261c]">{fmtMoney(+p.amount_paid, p.currency)}</td>
                     <td className="px-6 py-3 font-mono text-xs text-[#536658] font-semibold">{p.utr_ref ?? "—"}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-xs text-[#536658]">
-                    No payment records logged yet.
+                    {isFiltered ? "No payments in this period." : "No payment records logged yet."}
                   </td>
                 </tr>
               )}
@@ -411,7 +467,9 @@ export default async function DashboardPage({
               <span className="h-2 w-2 rounded-full bg-[#166534]" />
               CAPEX — Sanctioned vs Committed vs Paid
             </h2>
-            <p className="text-xs text-[#536658] mt-0.5">Budget allocation per manufacturing plant sub-head</p>
+            <p className="text-xs text-[#536658] mt-0.5">
+              Budget allocation per manufacturing plant sub-head · <b>As of today</b> (cumulative)
+            </p>
           </div>
           <CsvButton rows={capexCsv} filename="jetflo-capex-utilization.csv" />
         </div>
@@ -431,10 +489,10 @@ export default async function DashboardPage({
                 <tr key={r.sub_head} className="hover:bg-[#fbf9f4] transition-colors">
                   <td className="px-6 py-3.5 font-bold text-[#14261c]">{r.sub_head}</td>
                   <td className="px-6 py-3.5 text-right tabular-nums text-[#536658] font-semibold">{inr(r.sanctioned, { compact: true })}</td>
-                  <td className="px-6 py-3.5 text-right font-bold tabular-nums text-[#14261c]">{inr(r.committed, { compact: true })}</td>
-                  <td className="px-6 py-3.5 text-right font-bold tabular-nums text-[#166534]">{inr(r.paid, { compact: true })}</td>
+                  <td className="px-6 py-3.5 text-right font-bold tabular-nums text-[#14261c]">{fmtMoneyMulti(r.committed, { compact: true })}</td>
+                  <td className="px-6 py-3.5 text-right font-bold tabular-nums text-[#166534]">{fmtMoneyMulti(r.paid, { compact: true })}</td>
                   <td className="px-6 py-3.5">
-                    <div className="flex items-center gap-2.5" title={`Committed ${inr(r.committed)} of ${inr(r.sanctioned)}`}>
+                    <div className="flex items-center gap-2.5" title={`Committed ${inr(r.committedInr)} of ${inr(r.sanctioned)} (INR)`}>
                       <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#f0ebd9] border border-[#e5decb]">
                         <div
                           className="h-2 rounded-full transition-all duration-500"
@@ -454,10 +512,12 @@ export default async function DashboardPage({
               <tr className="border-t-2 border-[#e5decb] bg-[#fbf9f4] font-extrabold text-[#14261c]">
                 <td className="px-6 py-3.5">Total CAPEX</td>
                 <td className="px-6 py-3.5 text-right tabular-nums text-[#536658]">{inr(capexTotals.sanctioned, { compact: true })}</td>
-                <td className="px-6 py-3.5 text-right tabular-nums">{inr(capexTotals.committed, { compact: true })}</td>
-                <td className="px-6 py-3.5 text-right tabular-nums text-[#166534]">{inr(capexTotals.paid, { compact: true })}</td>
+                <td className="px-6 py-3.5 text-right tabular-nums">{fmtMoneyMulti(capexTotals.committed, { compact: true })}</td>
+                <td className="px-6 py-3.5 text-right tabular-nums text-[#166534]">{fmtMoneyMulti(capexTotals.paid, { compact: true })}</td>
                 <td className="px-6 py-3.5 text-xs text-[#536658]">
-                  {capexTotals.sanctioned ? `${Math.round((capexTotals.committed / capexTotals.sanctioned) * 100)}% overall utilized` : ""}
+                  {capexTotals.sanctioned
+                    ? `${Math.round(((capexTotals.committed.INR ?? 0) / capexTotals.sanctioned) * 100)}% overall utilized`
+                    : ""}
                 </td>
               </tr>
             </tbody>
@@ -481,7 +541,7 @@ export default async function DashboardPage({
               )}
             </div>
             <p className="text-xs text-[#536658] mt-0.5">
-              Dual-stage fulfillment tracking: Physical Goods Receipt (GRN) vs Invoiced (Billed) vs Bank Disbursement
+              Dual-stage fulfillment tracking: Physical Goods Receipt (GRN) vs Invoiced (Billed) vs Bank Disbursement · <b>As of today</b>
             </p>
           </div>
 
@@ -490,10 +550,10 @@ export default async function DashboardPage({
               Orders: <strong>{poRows.length}</strong>
             </span>
             <span className="rounded-xl border border-[#e5decb] bg-white px-3 py-1 text-[#166534]">
-              Total: <strong>{inr(poRows.reduce((s: number, p: any) => s + Number(p.total_value || 0), 0), { compact: true })}</strong>
+              Total: <strong>{fmtMoneyMulti(poTotals, { compact: true })}</strong>
             </span>
             <span className="rounded-xl border border-[#e5decb] bg-white px-3 py-1 text-[#0369a1]">
-              Billed: <strong>{inr(poRows.reduce((s: number, p: any) => s + Number(p.billed || 0), 0), { compact: true })}</strong>
+              Billed: <strong>{fmtMoneyMulti(poBilled, { compact: true })}</strong>
             </span>
           </div>
         </div>
@@ -616,10 +676,12 @@ export default async function DashboardPage({
               Raw Material — Monthly Run-Rate
             </h2>
             <span className="text-[11px] font-bold text-[#166534] bg-[#dcfce7] px-2.5 py-0.5 rounded-full border border-[#bbf7d0]">
-              {from || to ? "Filtered Period" : "All Time"}
+              {periodLabel}
             </span>
           </div>
-          <p className="text-xs text-[#536658] mb-4">Disbursements per month for production components</p>
+          <p className="text-xs text-[#536658] mb-4">
+            Disbursements per month for production components{rmExcludedNote && ` · ${rmExcludedNote}`}
+          </p>
           <MonthlyBars data={trend} color={C_RM} />
         </Card>
 
@@ -630,10 +692,12 @@ export default async function DashboardPage({
               Top Suppliers by Spend
             </h2>
             <span className="text-[11px] font-bold text-[#92400e] bg-[#fef3c7] px-2.5 py-0.5 rounded-full border border-[#fde68a]">
-              Raw Material
+              Raw Material · {periodLabel}
             </span>
           </div>
-          <p className="text-xs text-[#536658] mb-4">Concentration of spend across key manufacturing vendors</p>
+          <p className="text-xs text-[#536658] mb-4">
+            Concentration of spend across key manufacturing vendors{rmExcludedNote && ` · ${rmExcludedNote}`}
+          </p>
           <HBarList data={topVendors} color={C_RM} total={rmFilteredTotal} />
         </Card>
       </div>
@@ -642,7 +706,7 @@ export default async function DashboardPage({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Card>
           <h2 className="text-sm font-bold text-[#14261c] mb-1">Unclosed Advances Aging</h2>
-          <p className="text-xs text-[#536658] mb-4">Paid transfers awaiting final tax invoice</p>
+          <p className="text-xs text-[#536658] mb-4">Paid transfers awaiting final tax invoice · <b>As of today</b></p>
           {unclosed.length ? (
             <table className="w-full text-xs">
               <tbody className="divide-y divide-[#e5decb]">
@@ -656,7 +720,7 @@ export default async function DashboardPage({
                       </td>
                       <td className="py-2.5 text-right text-[#536658] font-medium">{v ? `${v.count} requests` : "0"}</td>
                       <td className="py-2.5 text-right font-bold tabular-nums text-[#14261c]">
-                        {v ? inr(v.amount, { compact: true }) : "—"}
+                        {v ? fmtMoneyMulti(v.amount, { compact: true }) : "—"}
                       </td>
                     </tr>
                   );
@@ -683,7 +747,7 @@ export default async function DashboardPage({
               </Link>
             )}
           </div>
-          <p className="text-xs text-[#536658] mb-3">Processing speeds & policy limits</p>
+          <p className="text-xs text-[#536658] mb-3">Processing speeds ({periodLabel}) & policy limits</p>
           <div className="space-y-2.5">
             <div className="rounded-xl border border-[#d8e8dc] bg-[#f4f9f5] p-3 flex items-center justify-between">
               <div>

@@ -1,8 +1,12 @@
 import { redirect } from "next/navigation";
 import { getSupabase } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/data";
-import { PageTitle, Card } from "@/components/ui";
+import { PageTitle, Card, Alert } from "@/components/ui";
 import { GovernanceSettingsForm } from "@/components/governance-settings-form";
+import {
+  NotificationRecipientsForm,
+  type NotificationRecipient,
+} from "@/components/notification-recipients-form";
 
 export default async function SettingsPage() {
   const profile = await requireProfile();
@@ -11,7 +15,15 @@ export default async function SettingsPage() {
   }
 
   const supabase = await getSupabase();
-  const { data: settings } = await supabase.from("jetflo_settings").select("key, value");
+  const [{ data: settings }, { data: recipients, error: recipientsError }, { data: financeUsers }] =
+    await Promise.all([
+      supabase.from("jetflo_settings").select("key, value"),
+      supabase
+        .from("jetflo_notification_recipients")
+        .select("id, team, name, email")
+        .order("created_at", { ascending: true }),
+      supabase.from("jetflo_users").select("email").eq("role", "finance").eq("active", true),
+    ]);
 
   const getSetting = (key: string, defaultVal: number) => {
     const s = settings?.find((x) => x.key === key);
@@ -52,6 +64,29 @@ export default async function SettingsPage() {
           duplicateWindowDays={duplicateWindowDays}
           poSecondApproverAbove={poSecondApproverAbove}
         />
+      </Card>
+
+      <Card>
+        <div className="mb-5 pb-4 border-b border-[#f0ebd9]">
+          <h2 className="text-base font-bold text-[#14261c] flex items-center gap-2">
+            <span>✉️</span>
+            Email Notification Recipients
+          </h2>
+          <p className="text-xs text-[#536658] mt-0.5 font-medium">
+            Employees added here are copied on workflow emails for their team. They don&apos;t need a portal login.
+          </p>
+        </div>
+
+        {recipientsError ? (
+          <Alert kind="warning">
+            Recipient list is unavailable — the <code>012_notification_recipients</code> migration has not been applied yet.
+          </Alert>
+        ) : (
+          <NotificationRecipientsForm
+            recipients={(recipients ?? []) as NotificationRecipient[]}
+            financeLogins={(financeUsers ?? []).map((u: { email: string }) => u.email)}
+          />
+        )}
       </Card>
     </div>
   );

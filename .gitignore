@@ -49,3 +49,6 @@ jetflo-portal/
 **/.vercel/
 *.tsbuildinfo
 next-env.d.ts
+
+# Local setup notes containing live Brevo credentials (shared with payroll) — never commit
+SMTP_EMAIL_SETUP.md

@@ -37,6 +37,42 @@ export function inr(n: number | null | undefined, opts: { compact?: boolean } = 
   return fmtMoney(n, "INR", opts);
 }
 
+/** Totals kept apart per currency — INR and USD must never be summed together. */
+export type CurrencyTotals = Record<string, number>;
+
+export function sumByCurrency<T>(
+  items: T[],
+  amount: (item: T) => number,
+  currency: (item: T) => string | null | undefined
+): CurrencyTotals {
+  const totals: CurrencyTotals = {};
+  for (const item of items) {
+    const cur = (currency(item) || "INR").toUpperCase();
+    totals[cur] = (totals[cur] ?? 0) + (Number(amount(item)) || 0);
+  }
+  return totals;
+}
+
+export function addTotals(a: CurrencyTotals, b: CurrencyTotals): CurrencyTotals {
+  const out = { ...a };
+  for (const [cur, n] of Object.entries(b)) out[cur] = (out[cur] ?? 0) + n;
+  return out;
+}
+
+/** "₹12.4 L + $16.5K" — INR first, zero currencies hidden, "₹0" when everything is zero. */
+export function fmtMoneyMulti(totals: CurrencyTotals, opts: { compact?: boolean } = {}): string {
+  const parts = Object.entries(totals)
+    .filter(([, n]) => n !== 0)
+    .sort(([a], [b]) => (a === "INR" ? -1 : b === "INR" ? 1 : a.localeCompare(b)))
+    .map(([cur, n]) => fmtMoney(n, cur, opts));
+  return parts.length ? parts.join(" + ") : fmtMoney(0, "INR", opts);
+}
+
+/** Calendar date in IST as "YYYY-MM-DD", safe to compare as a string against date inputs. */
+export function istDateKey(d: string | Date): string {
+  return new Date(d).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
 export function fmtDate(d: string | Date | null | undefined): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-IN", {

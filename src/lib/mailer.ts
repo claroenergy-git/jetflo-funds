@@ -23,7 +23,7 @@ export function siteUrl(path: string): string {
   return `${base}${path}`;
 }
 
-function escapeHtml(str: string): string {
+export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
