@@ -100,6 +100,15 @@ dashboard "PO Utilization" table).
 
 ---
 
+## 2b. AI Assistant for leadership — fully specced
+
+Full detail: [AI-ASSISTANT-SPEC.md](AI-ASSISTANT-SPEC.md). Leadership-only chat that answers
+ad-hoc questions about requests, payments, vendors and POs by running read-only SQL through a
+dedicated database login that cannot see bank details or write anything. Blocked on: DB admin
+creating `jetflo_ai_reader`, and a company Anthropic API key.
+
+---
+
 ## 3. Suggested next step
 
 Purchase Orders is the only item here that's fully specced and ready for a migration.

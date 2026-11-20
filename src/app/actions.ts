@@ -1,7 +1,7 @@
 "use server";
 
 import { getSupabase, getSupabaseAdmin } from "@/lib/supabase/server";
-import { adminQuery } from "@/lib/db";
+import { adminQuery, withUserContext } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { escapeHtml, notify, siteUrl } from "@/lib/mailer";
@@ -530,6 +530,51 @@ export async function submitRequest(_prev: ActionResult | null, formData: FormDa
       error: err?.message || "Failed to submit request.",
     };
   }
+}
+
+/**
+ * Requester pulls a still-undecided ('submitted') request back to draft to edit it.
+ * Runs as the requester so jetflo_validate_transition enforces ownership/status (migration 013);
+ * the reason travels as a transaction-local setting that the audit trigger records.
+ */
+export async function withdrawRequest(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
+  const { userId } = await ctx();
+  const id = String(formData.get("id"));
+  const reason = String(formData.get("reason") || "").trim();
+  if (!reason) return { ok: false, error: "Please give a reason for withdrawing." };
+
+  let withdrawn: { request_no: string | null; item_description: string | null } | undefined;
+  try {
+    withdrawn = await withUserContext(userId, async (client) => {
+      await client.query("SELECT set_config('jetflo.withdraw_reason', $1, true)", [reason]);
+      const res = await client.query<{ request_no: string | null; item_description: string | null }>(
+        `UPDATE jetflo_fund_requests SET status = 'draft'
+         WHERE id = $1 AND status = 'submitted'
+         RETURNING request_no, item_description`,
+        [id]
+      );
+      return res.rows[0];
+    });
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    if (/Illegal transition submitted/i.test(msg)) {
+      return { ok: false, error: "Withdrawing isn't enabled yet — database update 013 still needs to be applied." };
+    }
+    return { ok: false, error: msg.replace(/^.*?exception:\s*/i, "") };
+  }
+  if (!withdrawn) {
+    return { ok: false, error: "This request can only be withdrawn while it is still Submitted (before finance acts on it)." };
+  }
+
+  const admin = getSupabaseAdmin();
+  notify({
+    to: await financeEmails(admin),
+    subject: `Request ${withdrawn.request_no ?? ""} withdrawn for edits`,
+    html: `<p>${escapeHtml(withdrawn.item_description ?? "A request")} was withdrawn by the requester to make changes. It has left the approval queue and will come back when resubmitted.</p><p><b>Reason:</b> ${escapeHtml(reason)}</p><p><a href="${siteUrl(`/requests/${id}`)}">View the request</a></p>`,
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true };
 }
 
 export async function financeDecide(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {

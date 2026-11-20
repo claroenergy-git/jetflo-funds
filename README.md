@@ -11,7 +11,7 @@ Password for all users: **JetFlo@2026**
 | Role | Login | Can do |
 |---|---|---|
 | Requester (ground team) | `raju.r@claromfg.com` | Raise/edit/submit requests, upload quotations, close paid requests with final invoice |
-| Finance (Claro, Mumbai) | `accounts@claroenergy.in` | Approve / partial / reject / send back, record fund transfers, manage vendors & budget heads, draft/issue Purchase Orders |
+| Finance (Claro, Mumbai) | `accounts@claroenergy.in`, `moksha@claroenergy.in` | Approve / partial / reject / send back, record fund transfers, manage vendors & budget heads, draft/issue Purchase Orders |
 | Finance — 2nd approver | `gaurav@claroenergy.in` | Same as finance; needed for approvals above ₹5,00,000 (or PO issuance above ₹10,00,000) |
 | Leadership | `kartik@claroenergy.in`, `soumitra@claroenergy.in`, or `yash.parashar@claroenergy.in` | Read-only dashboard + all requests + governance threshold settings |
 

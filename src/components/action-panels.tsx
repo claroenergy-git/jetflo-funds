@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   financeDecide,
   recordPayment,
   closeRequest,
   submitRequest,
+  withdrawRequest,
   type ActionResult,
 } from "@/app/actions";
 import { inputCls, labelCls, btnPrimary, btnSecondary, Alert } from "@/components/ui";
@@ -162,6 +163,53 @@ export function CloseForm({ id, hasInvoice }: { id: string; hasInvoice: boolean 
       <button disabled={pending} className={btnPrimary}>
         {pending ? "Closing…" : "Close Request"}
       </button>
+    </form>
+  );
+}
+
+export function WithdrawPanel({ id }: { id: string }) {
+  const [state, action, pending] = useActionState<ActionResult | null, FormData>(withdrawRequest, null);
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <p className="text-xs text-[#536658]">
+          Need to change something? You can pull this request back while finance hasn&apos;t acted on it yet.
+        </p>
+        <button type="button" onClick={() => setOpen(true)} className={`${btnSecondary} shrink-0`}>
+          Withdraw to edit
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form action={action} className="space-y-3.5">
+      <input type="hidden" name="id" value={id} />
+      {state?.error && <Alert kind="error">{state.error}</Alert>}
+      <Alert kind="info">
+        The request leaves the approval queue and becomes a draft you can edit. It keeps its number, the
+        withdrawal is recorded in the timeline, and finance is notified. Submit it again when you&apos;re done.
+      </Alert>
+      <div>
+        <label className={labelCls}>Reason for withdrawing (required)</label>
+        <textarea
+          name="reason"
+          required
+          rows={2}
+          placeholder="e.g. Wrong quantity entered — correcting to 40 units"
+          className={inputCls}
+        />
+      </div>
+      <div className="flex gap-2">
+        <button disabled={pending} className={btnPrimary}>
+          {pending ? "Withdrawing…" : "Withdraw & edit"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className={btnSecondary}>
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }

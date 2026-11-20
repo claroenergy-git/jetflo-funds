@@ -14,6 +14,7 @@ const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUP
 const users = [
   { email: 'raju.r@claromfg.com',       name: 'Raju R',        role: 'requester',  plant: 'JetFlo Hyderabad',   phone: '+91 98490 11111' },
   { email: 'accounts@claroenergy.in',   name: 'Accounts Team', role: 'finance',    plant: 'Claro Energy, Mumbai', phone: '+91 98200 22222' },
+  { email: 'moksha@claroenergy.in',     name: 'Moksha Doshi',  role: 'finance',    plant: 'Claro Energy, Mumbai', phone: null },
   { email: 'gaurav@claroenergy.in',     name: 'Gaurav',        role: 'finance',    plant: 'Claro Energy, Mumbai', phone: '+91 98200 33333' },
   { email: 'kartik@claroenergy.in',     name: 'Kartik',        role: 'leadership', plant: 'Claro Energy, Mumbai', phone: '+91 98100 44444' },
   { email: 'soumitra@claroenergy.in',   name: 'Soumitra',      role: 'leadership', plant: 'Claro Energy, Mumbai', phone: '+91 98100 55555' },

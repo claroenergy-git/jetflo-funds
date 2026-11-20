@@ -5,7 +5,7 @@ import { Card, StatusChip, Alert } from "@/components/ui";
 import { inr, fmtMoney, fmtDate, fmtDateTime } from "@/lib/format";
 import { CATEGORY_LABEL, STATUS_LABEL, type Status } from "@/lib/types";
 import Link from "next/link";
-import { DecisionPanel, PaymentForm, CloseForm } from "@/components/action-panels";
+import { DecisionPanel, PaymentForm, CloseForm, WithdrawPanel } from "@/components/action-panels";
 import { RequestForm } from "@/components/request-form";
 import { ChangeCurrencyModal } from "@/components/change-currency-modal";
 import { IssuePoFromRequestButton } from "@/components/po-actions";
@@ -14,6 +14,7 @@ import { getVendorDocuments } from "@/lib/vendor-docs";
 const ACTION_LABEL: Record<string, string> = {
   created: "Request created",
   submitted: "Submitted for approval",
+  withdrawn: "Withdrawn by requester for edits",
   sent_back: "Sent back for changes",
   awaiting_second_approval: "First approval — awaiting second approver",
   approved: "Approved",
@@ -308,6 +309,14 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
               </table>
             </div>
           </div>
+        )}
+
+        {/* Requester can pull a not-yet-decided request back to draft to edit it */}
+        {isOwner && status === "submitted" && (
+          <Card>
+            <h2 className="mb-3 text-sm font-bold text-[#14261c]">Make Changes</h2>
+            <WithdrawPanel id={r.id} />
+          </Card>
         )}
 
         {/* Edit while draft / sent back */}
