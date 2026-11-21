@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { requireProfile, getFundRequests } from "@/lib/data";
-import { PageTitle, Alert } from "@/components/ui";
+import { PageTitle, Alert, btnPrimary } from "@/components/ui";
 import { RequestTable } from "@/components/request-table";
-import { inr } from "@/lib/format";
+import { fmtMoneyMulti, sumByCurrency } from "@/lib/format";
+import { PENDING_STATUSES, isActionableBy, reviewHref, sortQueue } from "@/lib/review-queue";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -9,20 +11,28 @@ export default async function QueuePage() {
   const profile = await requireProfile();
   if (profile.role !== "finance") return <Alert kind="error">Finance team only.</Alert>;
 
-  const rows: any[] = await getFundRequests(profile, {
-    statusIn: ["submitted", "awaiting_second_approval"],
-    orderBy: "fr.submitted_at ASC",
-  });
-  const order = { critical: 0, urgent: 1, normal: 2 } as Record<string, number>;
-  const sorted = rows.sort((a: any, b: any) => order[a.urgency] - order[b.urgency]);
-  const total = sorted.reduce((s: number, r: any) => s + Number(r.amount_requested), 0);
+  const rows: any[] = await getFundRequests(profile, { statusIn: PENDING_STATUSES });
+  const sorted = sortQueue(rows);
+  const totals = sumByCurrency(sorted, (r: any) => Number(r.amount_requested), (r: any) => r.currency);
   const amendedInQueue = sorted.filter((r: any) => r.currency_amended);
+
+  // Review mode (REVIEW-MODE-SPEC.md): start at the first request this user can decide.
+  const reviewStart = Date.now();
+  const actionable = sorted.filter((r) => isActionableBy(r, profile.id));
+  const first = actionable[0];
 
   return (
     <div>
       <PageTitle
         title="Approval queue"
-        sub={`${sorted.length} pending · ${inr(total, { compact: true })} requested — sorted by urgency, then age`}
+        sub={`${sorted.length} pending · ${fmtMoneyMulti(totals, { compact: true })} requested — sorted by urgency, then age`}
+        actions={
+          first ? (
+            <Link href={reviewHref(first.id, reviewStart)} className={btnPrimary}>
+              Start reviewing ({actionable.length}) →
+            </Link>
+          ) : undefined
+        }
       />
 
       {amendedInQueue.length > 0 && (
@@ -41,7 +51,7 @@ export default async function QueuePage() {
         </div>
       )}
 
-      <RequestTable rows={sorted} showRequester />
+      <RequestTable rows={sorted} showRequester hrefFor={(r) => reviewHref(r.id, reviewStart)} />
     </div>
   );
 }

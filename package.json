@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "node --test scripts/tests/*.test.mjs"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.14.0",

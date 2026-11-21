@@ -107,6 +107,12 @@ ad-hoc questions about requests, payments, vendors and POs by running read-only 
 dedicated database login that cannot see bank details or write anything. Blocked on: DB admin
 creating `jetflo_ai_reader`, and a company Anthropic API key.
 
+## 2c. Review mode for the approval queue — built
+
+Full detail: [REVIEW-MODE-SPEC.md](REVIEW-MODE-SPEC.md). Accounts work through the queue one
+request after another: each opens on the decision panel, and "Move to next request" follows
+every decision. Previous and Skip move only between undecided requests. No database change.
+
 ---
 
 ## 3. Suggested next step

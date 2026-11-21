@@ -192,6 +192,13 @@ export function RequestForm({
             <option value="capex">CAPEX — Plant Setup</option>
             <option value="raw_material">Raw Material / Components</option>
           </select>
+          {existing?.request_no &&
+            existing.request_no.startsWith(category === "capex" ? "JF-RM-" : "JF-CAP-") && (
+              <p className="mt-1.5 text-[11px] font-semibold text-[#92400e]">
+                Saving will give this request a new {category === "capex" ? "JF-CAP" : "JF-RM"} number
+                (replacing {existing.request_no}).
+              </p>
+            )}
         </div>
 
         <div>

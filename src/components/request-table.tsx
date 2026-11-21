@@ -3,8 +3,17 @@ import { Card, StatusChip } from "@/components/ui";
 import { inr, fmtMoney, fmtDate, daysSince } from "@/lib/format";
 import { CATEGORY_LABEL, type Status } from "@/lib/types";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function RequestTable({ rows, showRequester = false }: { rows: any[]; showRequester?: boolean }) {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export function RequestTable({
+  rows,
+  showRequester = false,
+  hrefFor = (r) => `/requests/${r.id}`,
+}: {
+  rows: any[];
+  showRequester?: boolean;
+  /** Where a row's request number links to (the approval queue links into review mode). */
+  hrefFor?: (row: any) => string;
+}) {
   if (!rows.length) {
     return (
       <Card className="p-12 text-center text-sm text-[#536658]">
@@ -37,7 +46,7 @@ export function RequestTable({ rows, showRequester = false }: { rows: any[]; sho
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <Link
-                      href={`/requests/${r.id}`}
+                      href={hrefFor(r)}
                       className="font-extrabold text-[#1e3e30] hover:text-[#142d21] hover:underline flex items-center gap-1 transition-colors"
                     >
                       <span>{r.request_no}</span>

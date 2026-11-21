@@ -1,6 +1,15 @@
 import { notFound } from "next/navigation";
 import { getSupabase } from "@/lib/supabase/server";
-import { requireProfile, getFundRequestById, getOpenPurchaseOrdersForPicker, type PoPickerOption } from "@/lib/data";
+import { requireProfile, getFundRequestById, getFundRequests, getOpenPurchaseOrdersForPicker, type PoPickerOption } from "@/lib/data";
+import {
+  PENDING_STATUSES,
+  isActionableBy,
+  parseReviewStart,
+  reviewPosition,
+  type QueueItem,
+  type ReviewPosition,
+} from "@/lib/review-queue";
+import { ReviewBar, ReviewDecisionSummary, ReviewDonePanel } from "@/components/review-mode";
 import { Card, StatusChip, Alert } from "@/components/ui";
 import { inr, fmtMoney, fmtDate, fmtDateTime } from "@/lib/format";
 import { CATEGORY_LABEL, STATUS_LABEL, type Status } from "@/lib/types";
@@ -15,6 +24,7 @@ const ACTION_LABEL: Record<string, string> = {
   created: "Request created",
   submitted: "Submitted for approval",
   withdrawn: "Withdrawn by requester for edits",
+  renumbered: "Request number changed",
   sent_back: "Sent back for changes",
   awaiting_second_approval: "First approval — awaiting second approver",
   approved: "Approved",
@@ -27,8 +37,15 @@ const ACTION_LABEL: Record<string, string> = {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export default async function RequestDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function RequestDetail({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ review?: string | string[] }>;
+}) {
   const { id } = await params;
+  const { review } = await searchParams;
   const profile = await requireProfile();
   const supabase = await getSupabase();
 
@@ -60,6 +77,15 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const isLeadership = profile.role === "leadership";
   const editable = isOwner && (status === "draft" || status === "sent_back");
 
+  // Review mode (REVIEW-MODE-SPEC.md): finance works through the queue one request after another.
+  const reviewStart = isFinance ? parseReviewStart(review) : null;
+  let reviewNav: ReviewPosition<any> | null = null;
+  const actionable = isActionableBy(r as QueueItem, profile.id);
+  if (reviewStart !== null) {
+    const pendingRows = await getFundRequests(profile, { statusIn: PENDING_STATUSES });
+    reviewNav = reviewPosition(pendingRows as any[], r as QueueItem, profile.id);
+  }
+
   let vendors: { id: string; name: string }[] = [];
   let heads: { id: string; category: string; sub_head: string }[] = [];
   let priorRequests: any[] = [];
@@ -80,9 +106,74 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
     purchaseOrders = pos;
   }
 
+  const summary = reviewNav ? (
+    <ReviewDecisionSummary r={r} attachmentCount={signed.length} />
+  ) : null;
+
+  const decisionCards = (
+    <>
+      {/* Accounts / Finance Decision Panel for submitted requests */}
+      {isFinance && status === "submitted" && (
+        <Card variant="amber">
+          {summary}
+          <h2 className="mb-3 text-sm font-bold text-[#92400e] flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-[#d97706]" />
+            Accounts Team Sign-Off & Verification
+          </h2>
+          <DecisionPanel
+            id={r.id}
+            amountRequested={Number(r.amount_requested)}
+            amountApproved={r.amount_approved ? Number(r.amount_approved) : null}
+            status={status}
+            currency={r.currency || "INR"}
+          />
+        </Card>
+      )}
+
+      {/* Leadership Sign-Off Panel (Gaurav) for High-Priority Requests */}
+      {(isLeadership || isFinance) && status === "awaiting_second_approval" && (
+        <Card variant="amber" className="border-2 border-[#f59e0b] shadow-md">
+          {summary}
+          <div className="mb-4 pb-3 border-b border-[#fde68a] flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-[#92400e] flex items-center gap-2">
+                <span className="text-base">👑</span>
+                High-Priority Leadership Sign-Off (Gaurav)
+              </h2>
+              <p className="text-xs text-[#92400e] mt-0.5 font-medium">
+                First approval by Accounts completed ({fmtMoney(r.amount_approved, r.currency)}). Leadership authorization required.
+              </p>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
+              High Priority
+            </span>
+          </div>
+          <DecisionPanel
+            id={r.id}
+            amountRequested={Number(r.amount_requested)}
+            amountApproved={r.amount_approved ? Number(r.amount_approved) : null}
+            status={status}
+            currency={r.currency || "INR"}
+          />
+        </Card>
+      )}
+    </>
+  );
+
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       <div className="space-y-6">
+        {reviewNav && reviewStart !== null && (
+          <ReviewBar
+            start={reviewStart}
+            prev={reviewNav.prev}
+            next={reviewNav.next}
+            before={reviewNav.before}
+            after={reviewNav.after}
+            canSkip={actionable}
+          />
+        )}
+
         {/* Header Title */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -98,6 +189,13 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
             Created: {fmtDate(r.created_at)}
           </span>
         </div>
+
+        {/* Review mode: land straight on the decision, or on "Move to next request" once decided */}
+        {reviewNav && reviewStart !== null && (
+          <div id="decision" className="scroll-mt-28 space-y-6">
+            {actionable ? decisionCards : <ReviewDonePanel r={r} start={reviewStart} next={reviewNav.next} />}
+          </div>
+        )}
 
         {/* Formal Currency Amendment Notice Banner */}
         {r.currency_amended && (
@@ -335,49 +433,8 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
           </Card>
         )}
 
-        {/* Accounts / Finance Decision Panel for submitted requests */}
-        {isFinance && status === "submitted" && (
-          <Card variant="amber">
-            <h2 className="mb-3 text-sm font-bold text-[#92400e] flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-[#d97706]" />
-              Accounts Team Sign-Off & Verification
-            </h2>
-            <DecisionPanel
-              id={r.id}
-              amountRequested={Number(r.amount_requested)}
-              amountApproved={r.amount_approved ? Number(r.amount_approved) : null}
-              status={status}
-              currency={r.currency || "INR"}
-            />
-          </Card>
-        )}
-
-        {/* Leadership Sign-Off Panel (Gaurav) for High-Priority Requests */}
-        {(isLeadership || isFinance) && status === "awaiting_second_approval" && (
-          <Card variant="amber" className="border-2 border-[#f59e0b] shadow-md">
-            <div className="mb-4 pb-3 border-b border-[#fde68a] flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold text-[#92400e] flex items-center gap-2">
-                  <span className="text-base">👑</span>
-                  High-Priority Leadership Sign-Off (Gaurav)
-                </h2>
-                <p className="text-xs text-[#92400e] mt-0.5 font-medium">
-                  First approval by Accounts completed ({fmtMoney(r.amount_approved, r.currency)}). Leadership authorization required.
-                </p>
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
-                High Priority
-              </span>
-            </div>
-            <DecisionPanel
-              id={r.id}
-              amountRequested={Number(r.amount_requested)}
-              amountApproved={r.amount_approved ? Number(r.amount_approved) : null}
-              status={status}
-              currency={r.currency || "INR"}
-            />
-          </Card>
-        )}
+        {/* Decision panels — in review mode they are shown at the top instead */}
+        {!reviewNav && decisionCards}
 
         {/* Purchase Order — auto-generated draft (against-invoice requests) or manual entry point */}
         {isFinance && sourcedPo && (

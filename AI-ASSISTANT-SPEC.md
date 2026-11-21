@@ -55,7 +55,7 @@ Leadership types a question in the chat panel
 
 ## 3. Data access — what the assistant can and cannot see
 
-### 3.1 The views (new migration `014_ai_assistant.sql`, runnable by the migration login)
+### 3.1 The views (new migration `015_ai_assistant.sql`, runnable by the migration login)
 
 All `security_invoker = true`, so the **existing RLS policies apply exactly as in the portal**
 (`jetflo_role()` is `SECURITY DEFINER` and resolves the role from `app.current_user_id`).
@@ -92,7 +92,7 @@ contains only JetFlo tables (verified 2026-11-09), so HR/payroll data is not rea
 
 ---
 
-## 4. New tables (in `014_ai_assistant.sql`)
+## 4. New tables (in `015_ai_assistant.sql`)
 
 | Table | Columns | Purpose |
 |---|---|---|
@@ -174,7 +174,7 @@ GRANT SELECT (id, name, trade_name, category, active, status, city, district, st
 GRANT SELECT (id, name, role, plant, active) ON jetflo_users TO jetflo_ai_reader;
 ```
 
-The `jetflo_ai_*` views are then created by migration 014 (migration login), which also
+The `jetflo_ai_*` views are then created by migration 015 (migration login), which also
 grants `SELECT` on them to `jetflo_ai_reader`.
 
 ### 8.2 Anthropic API key
@@ -211,7 +211,7 @@ At ~20 questions/day: **~₹2,000–5,000/month**. Every message's token usage i
 
 | Phase | Scope |
 |---|---|
-| **1 — MVP** | §8 prerequisites · migration 014 (views + conversation tables) · `/api/assistant` with Tool Runner + streaming · chat panel + `/assistant` page · "How I got this" · audit log · §10 checks |
+| **1 — MVP** | §8 prerequisites · migration 015 (views + conversation tables) · `/api/assistant` with Tool Runner + streaming · chat panel + `/assistant` page · "How I got this" · audit log · §10 checks |
 | **2** | Charts in answers · saved/pinned questions · copy to Excel · conversation search |
 | **3** | Weekly AI summary email to leadership (uses the existing Brevo mailer) · anomaly flags (duplicate-looking payments, budget heads crossing 90%) |
 
